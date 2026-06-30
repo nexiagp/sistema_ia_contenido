@@ -1,0 +1,71 @@
+Tu tarea es redactar un post de LinkedIn para Nexia GP del tipo "encuesta_pulso".
+
+MECANISMO DE FORMATO (no lo rompas):
+Este formato usa la ENCUESTA NATIVA de LinkedIn, no un post de texto con una pregunta retorica. Las opciones de voto se cargan en los campos nativos de la encuesta (NO se enumeran como cuerpo del post). El copy del post es CORTO: solo da contexto y empuja la accion. El alcance no lo da el voto, lo dan los comentarios; por eso el copy debe pedir votar Y comentar el porque.
+
+ESTE FORMATO NO ES UN MINI-ENSAYO. Si el texto empieza a explicar, argumentar o sentar catedra, lo estas convirtiendo en un post de autoridad y has fallado. Aqui Nexia escucha al canal, no da la leccion. La lectura de mercado (la tesis) NO va en el cuerpo del post: va en el comentario de reactivacion, despues de que la gente vote.
+
+Objetivo del tipo:
+Tomar el pulso real al canal B2B canario y mercados cercanos (fabricantes, distribuidores y actores de proyecto) con una encuesta corta y util que deje una lectura de mercado detras. No se encuesta por encuestar: la pregunta existe porque su respuesta dice algo sobre como decide el mercado.
+
+Cuando usarlo:
+- detectar como decide el canal ante una eleccion concreta (precio, servicio, plazo, marca, soporte tecnico, stock local)
+- contrastar prioridades reales de fabricantes frente a distribuidores
+- abrir conversacion sobre un dilema comercial vivo en Canarias (o, si aplica sin inventar datos, en mercados cercanos: norte de Africa, Cabo Verde, Caribe)
+- validar una intuicion de mercado antes de afirmarla
+- reactivar audiencia con baja friccion de participacion
+- sondear barreras de entrada, criterios de compra o cuellos de botella de operativa
+
+Lo que debe conseguir:
+- participacion alta y de bajo esfuerzo (el voto)
+- conversacion cualificada en comentarios (el porque)
+- senal real sobre como decide el mercado
+- alcance y guardados
+- posicionar a Nexia como quien escucha y lee el canal, no solo quien habla
+
+ESTRUCTURA DEL final_post (copy corto, legible en movil, una sola idea):
+1. Hook: una tension, contraste o dilema real del canal. No una pregunta generica ni un dato inventado.
+2. 1 frase (maximo 2) de contexto: por que esta eleccion importa AHORA para fabricantes, distribuidores o proyectos.
+3. La PREGUNTA de la encuesta, clara y cerrada, formulada como se votaria.
+4. Una unica invitacion a votar Y a comentar el porque (ahi esta el alcance). No repitas la llamada a comentar dos veces.
+NO incluyas en el final_post: ni el listado de las opciones (van en el campo aparte), ni la tesis/lectura de mercado (va en la reactivacion), ni un cierre largo de autoridad.
+
+OPCIONES DE VOTO (entregable separado, para cargar como nativas):
+- Entre 2 y 4 opciones. LinkedIn admite un maximo de 4.
+- Cada opcion: texto muy breve, hasta ~30 caracteres (limite real de la encuesta nativa de LinkedIn). Si no cabe, acortala.
+- Mutuamente excluyentes, sin solaparse, cubriendo las respuestas reales del canal.
+- Evita "Otro" salvo que aporte de verdad. Nunca uses una opcion como broma o relleno.
+
+Reglas especificas:
+- La pregunta debe ser cerrada y votable, no abierta ni retorica.
+- Una sola pregunta y una sola idea central; no encadenar varias preguntas.
+- Debe existir una tesis util detras: la encuesta sirve para leer al mercado, no para rellenar calendario. Esa tesis se reserva para el comentario de reactivacion.
+- No sesgar el voto: el copy no debe revelar cual es "la respuesta correcta" ni adelantar el resultado. Manten neutralidad entre opciones.
+- No inventar datos, cifras, marcas, proyectos, clientes ni resultados; usar solo contexto recuperado y briefing.
+- Hablar al canal B2B (fabricantes, distribuidores, actores de proyecto), nunca a particulares; tono de partner comercial-tecnico con criterio de mercado y conocimiento local, no de agencia de marketing ni de vendedor agresivo.
+- Aterrizar siempre en una implicacion real para esos actores.
+- Legible en movil: parrafos cortos, sin adjetivos vacios ni cliches.
+- Hashtag de marca unico: incluye siempre #NexiaGP.
+
+Buenas practicas LinkedIn 2026 para ESTE formato:
+- Copy breve: la encuesta nativa ya ocupa espacio; un copy largo compite con el voto y lo baja.
+- Pregunta autoexplicativa: muchos votan sin abrir el post, asi que pregunta y opciones deben entenderse solas.
+- Duracion sugerida: 1 semana (el ciclo de decision B2B es lento; permite que voten distintos perfiles del canal).
+- El autor comenta primero o pronto para arrancar el hilo; la conversacion en comentarios es la que da alcance.
+- No abuses de hashtags: pocos y relevantes, con #NexiaGP siempre presente.
+
+Sobre los campos de salida:
+- final_post: copy corto (hook, contexto, pregunta, una sola invitacion a votar y comentar el porque). SIN listar las opciones en el cuerpo y SIN la tesis.
+- opciones_voto: las 2-4 opciones nativas, una por linea, breves (~30 caracteres max) y excluyentes, listas para cargar en la encuesta de LinkedIn.
+- Los 2 hooks son variantes de apertura del mismo dilema, para elegir la que mejor empuje el voto.
+- El comentario de reactivacion (8-24h) es donde Nexia aporta la TESIS o lectura de mercado: suma criterio o un matiz que reactive el hilo sin cerrar el debate ni dar por cerrado el resultado, y sin sesgar a quien aun no ha votado.
+- La idea visual debe ser simple y reforzar la pregunta (no competir con la encuesta nativa ni con un grafico de datos inventados): un planteamiento visual del dilema.
+
+Entrega:
+- 2 hooks
+- 1 post final (copy corto: pregunta + invitacion a votar y comentar; SIN listar las opciones ni la tesis)
+- opciones_voto (2 a 4 opciones nativas, breves y excluyentes)
+- CTA (suave, orientado a comentar el porque)
+- hashtags (incluye siempre #NexiaGP)
+- comentario de reactivacion (con la tesis/lectura de mercado)
+- idea visual

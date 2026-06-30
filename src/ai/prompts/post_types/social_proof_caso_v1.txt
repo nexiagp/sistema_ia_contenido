@@ -1,0 +1,55 @@
+Tu tarea es redactar un post de LinkedIn para Nexia GP del tipo "social_proof_caso".
+
+Contexto de marca (no lo cites literal, solo guia el tono):
+Nexia GP es una agencia COMERCIAL B2B que conecta fabricantes con distribuidores y clientes empresariales en Canarias y mercados cercanos (Africa del Norte, Cabo Verde, Caribe). El tono es de partner comercial-tecnico con conocimiento local y criterio de mercado: ni catalogo, ni agencia de marketing generica, ni vendedor agresivo.
+
+Objetivo del tipo:
+Generar confianza mostrando COMO trabaja Nexia en el canal, a traves de un caso o situacion real contada como mini-historia: que situacion habia, que friccion la bloqueaba, que criterio aplico Nexia y que cambia despues. Siempre en terminos cualitativos y de proceso. Nunca con cifras, plazos, marcas ni clientes inventados.
+
+MECANISMO DE FORMATO (OBLIGATORIO - esto distingue este tipo de un post educativo):
+Este post NO es un mini-ensayo de autoridad ni una lista de consejos. Es un MICRO-CASO narrado. Debe construirse como una pequena historia de canal, anonimizada:
+- Hay un protagonista de mercado anonimizado (un fabricante de [categoria], un distribuidor insular, un actor de un proyecto), descrito por su SITUACION, no por su nombre.
+- Hay una situacion de partida concreta y una friccion real (no una generalidad abstracta del sector).
+- Hay un criterio o decision que aplica Nexia (el COMO, no el alarde).
+- Hay un cambio cualitativo despues (mejor posicion, proceso desbloqueado, criterio mas claro), nunca una metrica.
+Si el texto se puede reescribir como "5 claves para entrar en Canarias" o como una tesis general sin una situacion concreta detras, ESTA MAL: reescribelo como caso.
+
+Cuando usarlo:
+- mostrar el tipo de trabajo comercial real que hace Nexia
+- ilustrar un criterio con una situacion concreta del canal
+- reforzar confianza ante fabricantes que evaluan entrar en Canarias o mercados cercanos
+- explicar como se desbloquea una distribucion o una entrada de marca
+- dar credibilidad sin autobombo ni nota de prensa
+
+Lo que debe conseguir:
+- confianza y credibilidad de partner comercial-tecnico
+- prueba social que se siente real, no autopromocion
+- conversacion cualificada con fabricantes y distribuidores en comentarios
+
+Estructura ideal (una sola idea central, legible en movil):
+1. Hook (1-2 lineas) con la friccion o la situacion del canal, NO con un titular de exito. La primera linea debe enganchar antes del 'ver mas' (~200 caracteres).
+2. Situacion de partida: en que estado estaba el canal, la marca anonimizada o la oportunidad.
+3. La friccion concreta que lo bloqueaba.
+4. El criterio que aplica Nexia (el como: que decision, que lectura de mercado, que paso comercial).
+5. Que cambia despues, en terminos cualitativos y de proceso (mejor posicion / proceso desbloqueado / criterio mas claro), nunca en metricas.
+6. Lectura util para el mercado: que se lleva un fabricante o distribuidor que lea esto.
+7. CTA suave que invite a comentar o a compartir su propia experiencia (no a 'contactar' ni a vender).
+
+Reglas especificas (estrictas):
+- PROHIBIDO inventar cifras, porcentajes, plazos, nombres de cliente, marcas, testimonios, citas o resultados numericos. Usa solo lo que venga en el contexto recuperado o el briefing.
+- Si no hay un caso concreto documentado, habla del TIPO de trabajo y del aprendizaje recurrente, pero igual contado como situacion ("cuando un fabricante llega asi..."), nunca como caso fabricado con detalles falsos.
+- La anonimizacion debe ser creible y util (categoria, tipo de actor, situacion de canal) pero sin detalles que identifiquen a un cliente real.
+- Si solo hay datos parciales, recorta y manten el angulo cualitativo en lugar de rellenar con supuestos.
+- No sonar a caso de exito autocomplaciente, a nota de prensa ni a listado de tips.
+- Deja claro el rol de Nexia como partner comercial-tecnico, no como simple proveedor.
+- Movil: parrafos de 1-3 lineas, lineas en blanco entre bloques, una sola idea central. Sin enlaces en el cuerpo.
+- Evita adjetivos vacios, cliches y promesas grandilocuentes.
+- Hashtag de marca unico #NexiaGP (puedes anadir 1-2 hashtags tematicos relevantes como maximo).
+
+Entrega (devuelve exactamente estos bloques, etiquetados):
+- 2 hooks: dos primeras lineas alternativas, cada una < ~200 caracteres, ambas centradas en friccion/situacion, no en exito.
+- 1 post final: el caso completo segun la estructura ideal, listo para publicar, legible en movil.
+- CTA: una linea que invite a comentar o compartir experiencia.
+- hashtags: 1-3 en total, incluyendo siempre #NexiaGP.
+- comentario de reactivacion: un comentario breve del autor para reactivar el hilo si baja el alcance (una pregunta o matiz, sin datos inventados).
+- idea visual: descripcion de una imagen o grafico simple y coherente con el caso, que NO muestre datos, cifras, logos ni clientes reales.

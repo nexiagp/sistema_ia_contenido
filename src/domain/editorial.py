@@ -39,6 +39,26 @@ POST_TYPES = {
         "pillar": "actualidad_y_lectura_de_mercado",
         "description": "Convertir una novedad o movimiento en interpretacion util para fabricantes y distribuidores.",
     },
+    "founder_pov": {
+        "label": "Founder / Punto de vista",
+        "pillar": "voz_fundador_opinion",
+        "description": "Voz del fundador en primera persona: una conviccion propia sobre el mercado comercial B2B insular, abierta a debate.",
+    },
+    "social_proof_caso": {
+        "label": "Prueba social / Caso",
+        "pillar": "prueba_social_casos",
+        "description": "Prueba social y casos en terminos cualitativos (sin inventar cifras ni clientes): situacion, criterio aplicado y que cambio.",
+    },
+    "encuesta_pulso": {
+        "label": "Encuesta / Pulso",
+        "pillar": "encuesta_engagement",
+        "description": "Encuesta nativa de LinkedIn: una pregunta del canal B2B canario con opciones de voto que invita a votar y comentar.",
+    },
+    "dato_opinion": {
+        "label": "Dato + Opinion",
+        "pillar": "dato_opinion_tesis",
+        "description": "Dato o senal del sector mas una tesis con postura (hot take con criterio), aterrizada en consecuencia para el canal.",
+    },
 }
 
 CHANNELS = {

@@ -28,6 +28,10 @@ PROMPT_REGISTRY: "dict[str, dict]" = {
     "post_types/proyecto_prescripcion_v1.txt":      {"label": "Proyecto / Prescripción",         "group": "post_types", "scope": "posts"},
     "post_types/servicio_proceso_operativa_v1.txt": {"label": "Servicio / Proceso operativa",    "group": "post_types", "scope": "posts"},
     "post_types/actualidad_lectura_mercado_v1.txt": {"label": "Actualidad / Lectura de mercado", "group": "post_types", "scope": "posts"},
+    "post_types/founder_pov_v1.txt":                {"label": "Founder / Punto de vista",        "group": "post_types", "scope": "posts"},
+    "post_types/social_proof_caso_v1.txt":          {"label": "Prueba social / Caso",            "group": "post_types", "scope": "posts"},
+    "post_types/encuesta_pulso_v1.txt":             {"label": "Encuesta / Pulso",                "group": "post_types", "scope": "posts"},
+    "post_types/dato_opinion_v1.txt":               {"label": "Dato + Opinion",                  "group": "post_types", "scope": "posts"},
 
     # --- Transformers (2) ---
     "transformers/adaptacion_x_v1.txt":        {"label": "Adaptación X (Twitter)", "group": "transformers", "scope": "posts"},
@@ -48,6 +52,10 @@ POST_TYPE_PROMPTS = {
     "proyecto_prescripcion": "post_types/proyecto_prescripcion_v1.txt",
     "servicio_proceso_operativa": "post_types/servicio_proceso_operativa_v1.txt",
     "actualidad_lectura_mercado": "post_types/actualidad_lectura_mercado_v1.txt",
+    "founder_pov": "post_types/founder_pov_v1.txt",
+    "social_proof_caso": "post_types/social_proof_caso_v1.txt",
+    "encuesta_pulso": "post_types/encuesta_pulso_v1.txt",
+    "dato_opinion": "post_types/dato_opinion_v1.txt",
 }
 
 TRANSFORMER_PROMPTS = {

@@ -1,0 +1,62 @@
+Tu tarea es redactar un post de LinkedIn para Nexia GP del tipo "dato_opinion".
+
+QUE ES (y que NO es):
+Este formato NO es un mini-ensayo de autoridad ni un post educativo generico. Su mecanismo propio e innegociable es el patron DATO -> TESIS -> CONSECUENCIA:
+1) Arranca SIEMPRE de un dato o senal concreta e identificable (cifra, hecho o movimiento de mercado), citado de forma explicita.
+2) Sobre ese dato, Nexia se moja con UNA tesis y postura clara (un hot take con criterio).
+3) Cierra aterrizando la tesis en una consecuencia comercial, tecnica o de canal para fabricantes o distribuidores.
+Si el post se puede leer como una reflexion general sin un dato/senal concreto al inicio, esta mal: reescribelo hasta que el dato sea el ancla visible del post.
+
+Contexto de marca:
+Nexia GP es una agencia comercial B2B que conecta fabricantes con distribuidores y clientes empresariales en Canarias y mercados cercanos (Africa del Norte, Cabo Verde, Caribe). Suena a partner comercial-tecnico con conocimiento local y criterio de mercado. No suena a catalogo, a marketing generico ni a vendedor agresivo.
+
+Cuando usarlo:
+- un dato economico, fiscal (REF / ZEC), turistico o logistico relevante para el canal
+- una senal de mercado que la mayoria lee de forma superficial
+- una cifra del KB sectorial que admite una lectura contraintuitiva
+- un movimiento de PYME, distribucion o consumo insular que merece postura
+- cuando conviene diferenciar a Nexia con criterio, no con titulares
+
+Lo que debe conseguir:
+- autoridad con punto de vista, anclada en un dato (no en afirmaciones genericas)
+- conversacion y debate cualificado de quien decide en el canal
+- diferenciacion frente al contenido neutro y descriptivo
+- guardados y reacciones de perfiles de decision (fabricantes, distribuidores, actores de proyecto)
+
+Estructura ideal (formato dato_opinion):
+1. Hook en la PRIMERA linea con el dato o con una lectura contraintuitiva de ese dato (debe funcionar antes del corte 'ver mas')
+2. Contexto breve: que dice exactamente el dato y de donde sale (fuente del contexto recuperado o del briefing)
+3. Tesis: la interpretacion de Nexia, con postura clara y defendible
+4. Consecuencia: que significa en la practica para fabricantes o distribuidores
+5. Cierre con opinion firme e invitacion a contrastar
+6. CTA suave en forma de pregunta que pida la opinion del lector en comentarios
+
+Reglas especificas (guardarrailes):
+- DATO REAL Y ATRIBUIDO: usa solo el dato del contexto recuperado o del briefing. Cita la fuente tal como aparece en el contexto. No inventes cifras, porcentajes, fechas ni proyecciones.
+- DATO vs LECTURA: distingue siempre lo que es dato (cifra/hecho verificable) de lo que es interpretacion de Nexia. Si no hay dato soportado, NO lo fabriques: pivota a una senal cualitativa del mercado y di explicitamente que es una lectura, no una cifra.
+- UNA SOLA tesis y una sola idea central. No mezcles varias lecturas en un mismo post.
+- Mojate: evita el 'depende', el resumen neutro y el tono de informe.
+- Opinion fuerte NO es exageracion ni ataque. NO senales por su nombre a competidores, empresas, marcas ni instituciones identificables: la postura va sobre dinamicas de mercado, nunca contra actores concretos. No inventes marcas, clientes, proyectos ni resultados.
+- Aterriza siempre la tesis en una consecuencia comercial, tecnica o de canal concreta.
+- Manten la postura defendible: criterio de mercado, no provocacion vacia.
+
+Formato y legibilidad (movil-first, LinkedIn 2026):
+- Una sola idea central por post.
+- Parrafos de 1-2 lineas, con lineas en blanco entre bloques. Nada de muros de texto.
+- El gancho con el dato debe ir en la primera linea, antes del corte 'ver mas'.
+- Extension orientativa: post breve y denso (aprox. 90-160 palabras), sin relleno.
+- Tono claro y conversacional, sin adjetivos vacios ni cliches. No metas enlaces externos en el cuerpo del post.
+- Una afirmacion contrastable que invite a desacuerdo cualificado funciona mejor que una conclusion obvia.
+
+CTA y hashtags:
+- CTA preferente: una pregunta de cierre que invite a contrastar la tesis en comentarios.
+- Hashtag de marca obligatorio y unico: #NexiaGP. Como maximo 1-2 hashtags sectoriales sobrios adicionales si aportan; si no, solo #NexiaGP.
+- El comentario de reactivacion debe aportar un angulo o matiz NUEVO (un segundo dato del contexto, un contraejemplo o una pregunta mas afilada), no repetir el post.
+
+Entrega:
+- 2 hooks (ambos anclados en el dato o en su lectura contraintuitiva)
+- 1 post final
+- CTA (pregunta para comentarios)
+- hashtags (incluyendo #NexiaGP obligatorio)
+- comentario de reactivacion (con angulo nuevo)
+- idea visual (que represente el dato o la tesis, p. ej. cifra destacada, grafico simple o contraste, sin inventar datos en la imagen)

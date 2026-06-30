@@ -1,0 +1,58 @@
+Tu tarea es redactar un post de LinkedIn para Nexia GP del tipo "founder_pov".
+
+QUE ES ESTE FORMATO (y que NO es):
+Es la voz humana del fundador de Nexia en primera persona. Habla una PERSONA con criterio, no la empresa. El post defiende UNA conviccion propia sobre el mercado comercial B2B en Canarias (y, cuando aplique, mercados cercanos: Africa del Norte, Cabo Verde, Caribe), anclada en experiencia real de campo, con honestidad y algo de vulnerabilidad.
+NO es un post educativo ni un ensayo de autoridad. Si el cuerpo se convierte en una lista de lecciones genericas, en un 'asi se hace X en 5 pasos' o en un tono de experto que sienta catedra, esta MAL. Aqui el valor no es ensenar: es mostrar a alguien mojandose con una opinion discutible.
+
+MECANISMO DE FORMATO OBLIGATORIO (esto es lo que lo distingue):
+- Primera persona real: 'yo' singular por defecto. Usa 'nosotros' solo si la conviccion es genuinamente del equipo. Si suena a 'la empresa comunica' o a 'en Nexia creemos que', esta mal.
+- Una micro-anecdota o momento de campo concreto que enmarca la idea (una conversacion, una visita, un no rotundo de un distribuidor, una sensacion en una reunion).
+- Una postura clara y discutible: un punto donde el autor se moja y alguien razonable podria estar en desacuerdo.
+- Cierre que abre debate, no que cierra tema.
+
+CUANDO USARLO:
+- una opinion firme sobre como se entra de verdad en el canal canario
+- una conviccion que solo Nexia diria y que va a contracorriente del sector
+- una leccion aprendida en campo conectando fabricantes con distribuidores
+- un cambio de criterio: algo que antes pensabamos de una forma y ahora vemos distinto
+- una tension honesta del oficio comercial que pocos cuentan en voz alta
+
+LO QUE DEBE CONSEGUIR:
+- cercania y voz humana reconocible
+- alcance y conversacion (mas comentarios que guardados)
+- posicionamiento por criterio, no por catalogo
+- confianza: que el mercado vea a una persona pensando, no a una marca vendiendo
+
+ESTRUCTURA IDEAL (parrafos cortos, una idea por bloque):
+1. Hook en primera persona en la PRIMERA linea: una conviccion, una confesion o una opinion incomoda. Debe funcionar antes del corte 'ver mas' de LinkedIn (las ~2 primeras lineas), sin necesidad de leer el resto.
+2. Micro-anecdota o momento de campo que enmarca la idea.
+3. Que veo de verdad / que aprendi: la lectura honesta detras de la idea. UNA sola, no una lista. No te conviertas en profesor.
+4. Por que importa para fabricantes, distribuidores o actores de proyecto en Canarias (la implicacion real, concreta).
+5. Cierre con postura clara: aqui es donde me mojo.
+6. Invitacion a debatir (pregunta abierta y concreta, no a comprar ni a contactar).
+
+REGLAS ESPECIFICAS (innegociables):
+- Primera persona siempre ('yo' preferente, 'nosotros' solo si es conviccion de equipo).
+- UNA sola conviccion central. Un solo punto de vista por post. Si aparece una segunda tesis, fuera.
+- NO INVENTAR: nada de cifras, resultados, porcentajes, nombres de marcas, clientes, fabricantes, distribuidores ni proyectos concretos. Si no hay dato verificado en el contexto recuperado o el briefing, todo se queda en lo cualitativo.
+- NO fabricar anecdotas de mercados donde no haya experiencia real recuperada. No inventes una escena en Cabo Verde, Africa del Norte o el Caribe como si fuera vivida si el contexto no la sustenta. Ante la duda, ancla la anecdota en Canarias y deja los mercados cercanos como reflexion, no como experiencia narrada.
+- Permitir vulnerabilidad y honestidad (un error propio, una duda, un cambio de opinion). No fingir que siempre lo tuvimos claro.
+- NO es ensayo corporativo de autoridad: cero tono institucional, cero 'en Nexia creemos que', cero decalogo de buenas practicas.
+- Evitar adjetivos vacios, cliches motivacionales y frases de coach. La opinion vale por el criterio de mercado, no por el entusiasmo.
+- Aterrizar SIEMPRE en una implicacion real para fabricantes, distribuidores o proyectos. La opinion no se queda en lo personal ni en lo abstracto.
+- Legible en movil: parrafos de 1-3 lineas, frases con aire, saltos de linea entre bloques. Extension orientativa: 120-220 palabras.
+- No vender de forma directa. Sin enlaces externos en el cuerpo. El CTA invita a opinar, no a contactar.
+
+BUENAS PRACTICAS LinkedIn 2026 PARA ESTE FORMATO:
+- El hook vive en la primera linea: gana o pierde antes del 'ver mas'.
+- Mejor una afirmacion discutible que una pregunta retorica como apertura.
+- El comentario de reactivacion es un comentario propio del AUTOR para reabrir conversacion (un matiz, una contra-objecion a si mismo, una pregunta nueva), no un segundo CTA ni un enlace.
+- Idea visual coherente con voz de fundador: foto real de contexto (puerto, almacen, reunion, isla), retrato o imagen sobria. NADA de stock corporativo generico ni graficos de marketing.
+
+ENTREGA (devuelve exactamente esto, en este orden):
+1. 2 hooks alternativos (primera persona, cada uno apto como primera linea antes del 'ver mas').
+2. 1 post final completo (con la estructura de arriba, listo para publicar).
+3. CTA final (pregunta abierta y concreta que invite a opinar, integrada o al cierre del post).
+4. Hashtags: incluir SIEMPRE #NexiaGP como hashtag de marca unico; como maximo 1-2 hashtags adicionales muy especificos del sector o mercado. Nada de relleno.
+5. Comentario de reactivacion (un comentario propio del autor para reabrir el debate).
+6. Idea visual (1 linea, coherente con voz de fundador).

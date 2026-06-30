@@ -12,7 +12,11 @@
         "fabricante_colaborador",
         "proyecto_prescripcion",
         "servicio_proceso_operativa",
-        "actualidad_lectura_mercado"
+        "actualidad_lectura_mercado",
+        "founder_pov",
+        "social_proof_caso",
+        "encuesta_pulso",
+        "dato_opinion"
       ]
     },
     "pillar": { "type": "string" },
