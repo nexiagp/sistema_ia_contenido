@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.ai.services.context_helpers import recent_angles, recent_openings
 from src.ai.services.openai_client import OpenAIClient
 from src.ai.services.prompt_service import base_prompt, planner_prompt, schema
 from src.domain.editorial import MASTER_POST_TYPES, POST_TYPES
@@ -26,16 +27,18 @@ class PlannerService:
 
     @staticmethod
     def _build_user_prompt(request: dict, db: dict) -> str:
-        used = [
-            post.get("idea") or post.get("title")
-            for post in db.get("posts", [])[:30]
-            if post.get("idea") or post.get("title")
-        ]
+        used_ideas = recent_angles(db, limit=15)
+        used_hooks = recent_openings(db, limit=15)
         return (
             "Construye un brief estrategico para Nexia GP.\n"
             f"Solicitud del usuario: {request}\n"
             f"Tipos soportados: {MASTER_POST_TYPES}\n"
-            f"Ideas recientes a evitar: {used}\n"
+            f"Tesis recientes a NO repetir: {used_ideas}\n"
+            f"Aperturas/hooks recientes a NO repetir: {used_hooks}\n"
+            "Regla anti-repeticion: el angulo y la apertura deben ser claramente distintos de los anteriores. "
+            "Esta PROHIBIDO reutilizar el patron de hook 'En Canarias, una buena X no basta / no garantiza / no avanza'. "
+            "Varia el mecanismo de apertura entre: dato concreto, pregunta directa, error frecuente, contraste, "
+            "mini-historia, afirmacion contraintuitiva.\n"
         )
 
     @staticmethod

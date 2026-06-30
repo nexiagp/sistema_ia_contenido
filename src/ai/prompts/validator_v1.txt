@@ -8,9 +8,11 @@ Debes comprobar:
 5. Riesgo de sonar a catalogo
 6. Riesgo de exageracion
 7. Fuerza del hook
-8. Calidad de la CTA
+8. Calidad de la CTA (preferible que invite a comentar/responder, no solo "hablamos por privado")
 9. Legibilidad en movil
 10. Coherencia con audiencia y objetivo
+11. Hashtag de marca: debe ser unico y exactamente #NexiaGP (corrige variantes). 3-6 hashtags relevantes.
+12. Apertura no clonica: el hook NO debe repetir el patron "En Canarias, una buena X no basta". Si lo hace, reescribelo con otro mecanismo.
 
 Corrige el texto si detectas:
 - datos no soportados

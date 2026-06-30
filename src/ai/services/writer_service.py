@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.ai.services.context_helpers import recent_openings
 from src.ai.services.openai_client import OpenAIClient
 from src.ai.services.prompt_service import base_prompt, post_type_prompt, schema
 
@@ -11,7 +12,7 @@ class WriterService:
     def write(self, request: dict, brief: dict, retrieval: dict, db: dict) -> tuple[dict, str | None]:
         if self.client.enabled:
             try:
-                user = self._build_user_prompt(request, brief, retrieval)
+                user = self._build_user_prompt(request, brief, retrieval, db)
                 system = f"{base_prompt()}\n\n{post_type_prompt(brief['post_type'])}"
                 return self.client.responses_json(
                     system=system,
@@ -25,12 +26,15 @@ class WriterService:
         return self._fallback_write(request, brief, retrieval), None
 
     @staticmethod
-    def _build_user_prompt(request: dict, brief: dict, retrieval: dict) -> str:
+    def _build_user_prompt(request: dict, brief: dict, retrieval: dict, db: dict) -> str:
+        avoid_hooks = recent_openings(db, limit=15)
         return (
             "Redacta el contenido con salida estructurada.\n"
             f"Solicitud original: {request}\n"
             f"Brief estrategico: {brief}\n"
             f"Contexto recuperado: {retrieval}\n"
+            f"Aperturas recientes que NO debes repetir (cambia el mecanismo del hook; "
+            f"prohibido el patron 'En Canarias, una buena X no basta'): {avoid_hooks}\n"
             "No uses ninguna fuente fuera del briefing y del contexto recuperado."
         )
 

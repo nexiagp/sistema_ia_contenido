@@ -5,6 +5,7 @@ from typing import Any
 from uuid import uuid4
 
 from src.ai.services.adaptation_service import AdaptationService
+from src.ai.services.context_helpers import normalize_hashtags
 from src.ai.services.openai_client import OpenAIClient
 from src.ai.services.planner_service import PlannerService
 from src.ai.services.retrieval_service import RetrievalService
@@ -28,6 +29,7 @@ class EditorialPipeline:
         generation, responses["writer"] = self.writer.write(request, brief, retrieval, db)
         validation, responses["validator"] = self.validator.validate(request, brief, retrieval, generation, db)
 
+        validation["hashtags"] = normalize_hashtags(validation.get("hashtags"))
         generation["copy"]["final_post"] = validation["final_post"]
         generation["copy"]["cta"] = validation["cta"]
         generation["copy"]["hashtags"] = validation["hashtags"]
@@ -45,6 +47,9 @@ class EditorialPipeline:
         adaptations = None
         if request.get("necesita_adaptacion_multicanal", True):
             adaptations, responses["adaptation"] = self.adapter.adapt(generation, validation, db)
+            # Garantia de entrega completa: si faltan X o Facebook, usa el fallback (nunca {} vacio).
+            if not _adaptations_complete(adaptations):
+                adaptations = self.adapter._fallback_adapt(validation)
 
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         post = {
@@ -97,6 +102,15 @@ class EditorialPipeline:
         post.setdefault("responseIds", {})["adaptation"] = response_id
         post["updatedAt"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         return adaptations
+
+
+def _adaptations_complete(adaptations: Any) -> bool:
+    """True solo si hay version de X (short_version) y de Facebook (final_post)."""
+    if not isinstance(adaptations, dict):
+        return False
+    x = adaptations.get("x") or {}
+    facebook = adaptations.get("facebook") or {}
+    return bool(x.get("short_version")) and bool(facebook.get("final_post"))
 
 
 def normalize_request(request: dict[str, Any]) -> dict:

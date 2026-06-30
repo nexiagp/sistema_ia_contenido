@@ -5,12 +5,12 @@ Hacerlo mas divulgativo y algo mas accesible sin perder profesionalidad ni clari
 
 Reglas:
 - Manten la idea central.
-- Reduce densidad.
-- Evita excesivo tecnicismo.
-- Conserva el tono profesional.
-- No lo conviertas en un texto demasiado informal.
-- No debe sonar a copia automatica de LinkedIn.
-- Puede incluir una CTA algo mas visible si es natural.
+- REESCRITURA REAL, no copia: abre con un gancho DISTINTO al de LinkedIn (no reutilices su primera frase).
+- Funde los parrafos cortos de LinkedIn en 2-3 bloques mas narrativos y divulgativos.
+- Reduce densidad y tecnicismo; explica como a alguien menos especializado.
+- Conserva el tono profesional, sin caer en lo demasiado informal.
+- No debe compartir frases literales con el post de LinkedIn. Si el resultado se parece demasiado al original, no es valido.
+- Cierra con una CTA visible.
 
 Entrega:
 - version Facebook final
