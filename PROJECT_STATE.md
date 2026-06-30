@@ -1,7 +1,7 @@
 # Nexia GP Social AI — Estado de continuidad
 
-**Fecha de referencia: 2026-06-07**
-**Ultima sesion documentada: Sesion 3 (07/06/2026)**
+**Fecha de referencia: 2026-06-30**
+**Ultima sesion documentada: Sesion 4 (30/06/2026) — Auditoria + Fases 0, 1 y 2**
 
 Este archivo es la fuente de verdad del proyecto. Leerlo SIEMPRE antes de retomar trabajo.
 
@@ -9,220 +9,281 @@ Este archivo es la fuente de verdad del proyecto. Leerlo SIEMPRE antes de retoma
 
 ## PUNTO ACTUAL DEL PROYECTO
 
-El sistema esta operativo y completo en sus tres pilares principales:
+El sistema esta operativo y completo en sus pilares principales, y en la sesion 4 se hizo una
+auditoria completa (PM + experto en redes) seguida de tres fases de mejora ya implementadas,
+verificadas y commiteadas:
 
 1. **Generacion de posts** para LinkedIn/X/Facebook — funcional, con imagenes, prompts editables.
 2. **Generacion de articulos de blog** — funcional, con imagenes ligeras, preview fiel al sitio web.
-3. **Knowledge Base externa** — 34 PDFs descargados (122 MB), pendientes de subir al Vector Store.
+3. **Knowledge Base externa** — **SUBIDA**: 34 PDFs sectoriales de Canarias ya en el Vector Store.
 
-**Lo que falta ahora mismo:**
-- Subir la KB externa al Vector Store (los archivos ya estan en disco).
-- Decidir si se sube al VS actual o al VS definitivo del cliente.
-- Mejorar el sistema de generacion de imagenes para posts (calidad, variedad de estilos).
+**Lo que falta ahora mismo (unico gran pendiente de producto):**
+- **Publicacion / programacion real** a redes (LinkedIn API o Buffer/Metricool). Hoy solo hay un
+  stub por webhook (`SOCIAL_WEBHOOK_URL`). Requiere decision de plataforma + credenciales OAuth.
+- **Calendario editorial** visual (asociado a la publicacion).
+- Acciones manuales de seguridad pendientes (ver seccion Seguridad).
+
+---
+
+## Git y control de versiones
+
+- El proyecto **ya es un repositorio git** (antes no lo era). Rama: `main`.
+- `.gitignore` blindado: excluye `.env`, claves en `.txt`, backups `data/db.backup-*.json`,
+  cache, `data/uploads/`, browser-profiles y capturas pesadas.
+- Identidad de commits usada: `Sergio GP <sergio@sergiogp.com>`.
+- **Historial (9 commits, sesion 4)** — ver `CHANGELOG.md` para el detalle:
+  ```
+  25ff27b feat(ux): export CSV/JSON, preview por canal y filtros en Blogs
+  68ad85f feat(ux): edicion inline, filtros/busqueda, metrica de tokens, foco accesible
+  f5826a0 feat(integridad+coste): escrituras atomicas en db.json y registro de tokens
+  59c05bb feat(formatos): 4 nuevos tipos de post de alto engagement
+  fe09c98 feat(voz): punto de vista y vocabulario propio de Nexia en el prompt base
+  ba97415 feat(calidad): anti-repeticion de hooks, X<=280, hashtags de marca, completitud
+  14a3713 data: sube la KB sectorial (34 PDFs de Canarias) al Vector Store
+  1f72a9c fix: el importador local ahora detecta la KB externa (kb-externa)
+  8dec1e8 chore: repo inicial + depuracion de seguridad y prompts
+  ```
+
+---
+
+## Seguridad — ACCIONES MANUALES PENDIENTES (solo las puede hacer el usuario)
+
+La sesion 4 detecto que las claves estaban en texto plano dentro de una carpeta **OneDrive**
+(se sincronizan a la nube de Microsoft). Se eliminaron del control de versiones, pero:
+
+1. **Rotar TODAS las claves** (OpenAI y Cloudinary): asumirlas comprometidas.
+2. **Borrar manualmente** `API Key Project.txt` y `API CLOUDINARY.txt` de la raiz (ya estan en
+   `.gitignore`, pero siguen en disco; el borrado quedo pendiente del usuario).
+3. **Sacar el proyecto de OneDrive** o excluir `.env` y secretos de la sincronizacion.
+
+Otras notas de seguridad (deuda conocida, no bloqueante en uso local mono-usuario):
+- El servidor **no tiene autenticacion** (bindea a `localhost`). No exponerlo en red sin token.
+- Inputs de usuario van directos a los prompts (riesgo teorico de prompt injection en local).
 
 ---
 
 ## App actual
 
-- Aplicacion local para generar posts de LinkedIn (con adaptaciones a X y Facebook) y articulos de blog para Nexia Growth Partner.
-- Servidor canonico: `server.py` (Python `SimpleHTTPRequestHandler`).
+- Aplicacion local para generar posts de LinkedIn (con adaptaciones a X y Facebook) y articulos
+  de blog para Nexia Growth Partner.
+- Servidor canonico: `server.py` (Python `ThreadingHTTPServer` + `SimpleHTTPRequestHandler`).
 - URL local: `http://localhost:8787`.
-- Vistas principales:
-  - `http://localhost:8787/#posts` — revision editorial de posts.
-  - `http://localhost:8787/#blogs` — creacion y revision de articulos de blog.
-  - `http://localhost:8787/#library` — biblioteca de archivos y Vector Store.
-  - `http://localhost:8787/#settings` — ajustes (4 sub-tabs: General / Posts / Blog / Prompts).
-- La clave API esta configurada en `.env`; no imprimirla ni moverla a archivos versionables.
+- Vistas principales (SPA en JS vanilla):
+  - `#generator` — formulario de generacion de posts (pipeline editorial).
+  - `#posts` — revision editorial de posts **con filtros, busqueda, edicion inline, export y
+    preview por canal** (nuevo en sesion 4).
+  - `#blogs` — creacion y revision de articulos de blog **con filtros y busqueda** (nuevo).
+  - `#library` — biblioteca de archivos y Vector Store.
+  - `#strategy` (Tematicas) — informativo de tipos/prompts.
+  - `#automation` — scheduler por cadencia.
+  - `#settings` — ajustes (General / Posts / Blog / Prompts).
+- La clave API esta en `.env`; no imprimirla ni moverla a archivos versionables.
 
 ---
 
 ## Estado de datos (db.json)
 
-- 5 posts (4 draft, 1 ready) — todos con imagenes generadas.
+- 5 posts (4 draft, 1 ready) — todos con imagenes generadas. Sirven de muestra; NO borrar.
 - 2 blogs (ambos draft) — ambos con imagenes generadas.
-- 12 archivos sincronizados con OpenAI Vector Store (solo web y copywriting de Nexia, sin KB externa aun).
-- 15 prompts registrados (editables desde UI, con versionado append-only).
+- **46 archivos** sincronizados con el Vector Store: 12 (web + copywriting de Nexia) + **34 de la
+  KB externa sectorial** (subidos en sesion 4).
+- 0 overrides de prompt (los `.txt` estan activos; `prompt_overrides` y `prompt_versions` vacios).
+- **`usageStats`** (nuevo): acumulado de tokens por generacion (`generations`, `calls`,
+  `input_tokens`, `output_tokens`, `total_tokens`).
 - Almacenamiento: JSON flat-file local (`data/db.json`). NO Supabase.
+- **Escrituras atomicas** (nuevo): todo read-modify-write pasa por `transaction()` con un unico
+  lock (ver seccion Integridad). `write_db` sigue siendo atomico a nivel de fichero (`.tmp`+replace).
 
 ---
 
 ## OpenAI
 
-- Modelo configurado: `gpt-5.4-mini`.
-- Vector Store activo: `vs_69e91ba9d27c819197a522a6a07dae20`.
-- Nombre: `Nexia GP Knowledge Base`.
-- El cliente ignora proxies heredados invalidos via `urllib.request.ProxyHandler({})` en `server.py` y `openai_client.py`.
+- Modelo de texto: `gpt-5.4-mini` (Responses API). Modelo de imagen: `gpt-image-2`.
+  **IMPORTANTE: ambos modelos SON reales y funcionan** (probado por `responseIds` reales y por las
+  imagenes generadas). Auditorias con corte de conocimiento antiguo los marcan por error como
+  "inexistentes": es un falso positivo, NO cambiarlos.
+- Vector Store activo: `vs_69e91ba9d27c819197a522a6a07dae20` (Nexia GP Knowledge Base), ya con web +
+  copywriting + KB sectorial (46 archivos).
+- El cliente ignora proxies heredados invalidos via `urllib.request.ProxyHandler({})`.
+- **Registro de coste** (nuevo): `OpenAIClient` acumula `usage` por instancia; el pipeline lo
+  adjunta a cada post; `record_usage()` lo suma en `db.usageStats`.
 
 ---
 
 ## Cloudinary
 
-- Dos variantes por imagen:
-  - `rawUrl`: sin overlay — usada en blog por defecto.
-  - `brandedUrl`: con logo Nexia GP — usada en posts por defecto.
+- Dos variantes por imagen: `rawUrl` (sin overlay, blog) y `brandedUrl` (con logo, posts).
 - Cuenta: `dg3peytgm`, carpetas `nexiagp/posts/` y `nexiagp/blogs/`.
 
 ---
 
-## Knowledge Base externa (KB) — PENDIENTE DE SUBIR
+## Knowledge Base externa (KB) — SUBIDA (sesion 4)
 
-### Estado
-- **34 PDFs descargados y verificados** en `data/uploads/kb-externa/` (122 MB total).
-- Investigacion realizada con workflow de 28 agentes: busqueda → verificacion real de URLs → curacion → relleno de gaps → sintesis.
-- Script de descarga en `scripts/download_kb.py` (para re-ejecutar si hace falta).
-
-### Estructura de la carpeta
-```
-data/uploads/kb-externa/
-├── A-economia/   8 docs  (18.8 MB)  — CES 2024, BBVA 2025+2026, Presupuestos, CEOE-Tenerife
-├── B-fiscal/     6 docs  (15.3 MB)  — Manual AEAT, Dictamen REF Parlamento, PwC/SPEGC, ZEC, BIPLAZA, RIC
-├── C-turismo/    5 docs  (26.1 MB)  — IMPACTUR, Perspectivas N.95, Balance Tenerife, ULL
-├── D-logistica/  3 docs  (14.4 MB)  — Memoria AP Tenerife 2024, Sostenibilidad SCT, OPPE Anuario
-├── E-industria/  4 docs   (9.4 MB)  — EDIC 2022-2027, CCE Construccion, Mapa Vacantes, CCOO
-├── F-demografia/ 4 docs   (9.2 MB)  — PYME Canarias 2025, PYME 2024 Talento, CCE Estructura, DGIPYME
-├── G-digital/    3 docs  (26.6 MB)  — eCanarias 2024, ONTSI PYMEs, BBVA/Ivie Productividad
-└── Z-garden/     1 doc   (1.4 MB)   — MAPA Flor Cortada
-```
-
-### TOP 10 imprescindibles (por score del workflow)
-1. Informe Economico Presupuestos Canarias 2026 (10/10) — macro oficial 2025-2028
-2. Manual Practico Sociedades 2024 AEAT Cap.12 (10/10) — REF/ZEC/RIC tecnico
-3. Dictamen Revision REF Parlamento Canarias dic.2025 (10/10) — futuro normativo
-4. CES Informe Anual 2024 (9/10) — radiografia integral 354 pag
-5. EDIC Estrategia Industrial Canarias 2022-2027 (9/10) — sectores prioritarios
-6. IMPACTUR Canarias 2024 EXCELTUR (9/10) — impacto economico turismo
-7. Guia Fiscal Gran Canaria 2024 PwC/SPEGC (9/10) — ZEC+RIC+DIC accesible
-8. PYME Canarias 2025 FAEDPYME/ULPGC (9/10) — perfil del cliente PYME
-9. BBVA Situacion Canarias 2026 (9/10) — macro independiente
-10. Guia Constituir Empresas ZEC BIPLAZA/ONE (9/10) — operativo paso a paso
-
-### Para subir al Vector Store
-Desde la app: Library > Importar local > seleccionar carpeta `data/uploads/kb-externa/` > Sincronizar OpenAI.
-O bien esperar al Vector Store definitivo del cliente para subirlo todo de una vez.
-
-### Pendiente descarga manual (bloqueado por anti-bot)
-- **OTLE Informe Anual 2024** (logistica): https://otle.transportes.gob.es/informes-anuales-monograficos/informes-anuales/informe-anual-otle-2024
-  — Descargar manualmente desde el navegador y mover a `data/uploads/kb-externa/D-logistica/`.
+- **34 PDFs sectoriales de Canarias** subidos al Vector Store, con **categoria por sector**:
+  `kb-economia` (8), `kb-fiscal` (6), `kb-turismo` (5), `kb-logistica` (3), `kb-industria` (4),
+  `kb-demografia` (4), `kb-digital` (3), `kb-garden` (1).
+- Origen en disco: `data/uploads/kb-externa/` (sin tocar; el script apunta a esos PDFs sin duplicar).
+- Subida hecha con `scripts/upload_kb.py` (resumible: guarda db.json por archivo, salta los ya
+  subidos). El endpoint/boton de la app tambien funciona ya (ver fix abajo).
+- **Pendiente (no bloqueante):** falta 1 doc, el **OTLE Informe Anual 2024** (logistica), bloqueado
+  por anti-bot. Descargar manualmente a `data/uploads/kb-externa/D-logistica/` y re-ejecutar
+  `python scripts/upload_kb.py` (subira solo ese).
+- **Fix asociado:** `list_local_documents()` antes NO escaneaba `data/uploads/kb-externa/` (solo
+  `Documentacion Nexia` y el docx), por lo que el "Importar local" documentado no funcionaba.
+  Corregido: ahora detecta la KB y asigna categoria sectorial.
 
 ---
 
 ## Arquitectura editorial — Posts
 
-Flujo multi-step:
-1. `planner` — decide tipo, audiencia, objetivo, brief.
-2. `retrieval` — busca en Vector Store documentacion relevante.
-3. `writer` — genera el post LinkedIn.
-4. `validator` — valida calidad, riesgos, adherencia a marca.
-5. Adaptadores multicanal — genera versiones X y Facebook.
+Flujo multi-step (`src/ai/services/pipeline_service.py`):
+1. `planner` — decide tipo, audiencia, objetivo, brief. **Recibe los hooks y angulos recientes para
+   no repetir** y prohibe el patron clonico "En Canarias, una buena X no basta" (anti-repeticion).
+2. `retrieval` — busca en el Vector Store (ahora con datos sectoriales reales de la KB).
+3. `writer` — genera el post. **Tambien recibe las aperturas recientes a evitar.**
+4. `validator` — valida calidad, riesgos, marca. Comprueba hashtag unico #NexiaGP y apertura no clonica.
+5. Adaptadores multicanal X y Facebook con **guardas deterministas** (ver Calidad de contenido).
+
+Tras el pipeline, en `pipeline_service.run`: se **normalizan los hashtags** (`#NexiaGP` unico,
+dedup, max 6) y se garantiza la **completitud** de adaptaciones (nunca `{}` vacio).
 
 ---
 
 ## Arquitectura editorial — Blog
 
-Flujo multi-step:
-1. `blog_planner` — brief, keywords, estructura de secciones, figure slots.
-2. `retrieval` — busca en Vector Store.
-3. `blog_writer` — genera articulo completo en HTML semantico con CTA "Comenzamos? · Contactar".
-4. `seo_reviewer` — valida SEO, flags de calidad.
-5. Generacion de imagenes de figura — N imagenes ligeras por articulo.
+Flujo: `blog_planner` -> `retrieval` -> `blog_writer` (HTML semantico, CTA fija "¿Comenzamos? ·
+Contactar") -> `seo_reviewer` -> generacion de imagenes de figura. Settings en `settings.blog`
+(`defaultModel`, `defaultLength`, `defaultFramework`, `defaultAudience`, `imagesPerArticle`,
+`imageQuality`, `costTargetCents`).
 
-Settings en `settings.blog`:
-- `defaultModel`, `defaultLength`, `defaultFramework`, `defaultAudience`
-- `imagesPerArticle` (default 2), `imageQuality` (default "standard")
-- `costTargetCents` (default 30)
+---
+
+## Calidad de contenido (mejoras de sesion 4)
+
+Correcciones de los defectos verificados en la auditoria, cada una con **guarda de codigo
+determinista + refuerzo de prompt** (porque "solo pedirlo" fallaba):
+
+- **Anti-repeticion de hooks**: planner y writer reciben los hooks/angulos recientes
+  (`context_helpers.recent_openings/recent_angles`) + prohibicion del patron clonico.
+- **X <= 280**: `adaptation_service` re-prompt acotado + `clip_text` determinista de seguridad
+  (antes las "versiones cortas" salian a 428-554 caracteres).
+- **Facebook real**: guarda de similitud Jaccard que reescribe FB si es calco de LinkedIn.
+- **Hashtags de marca**: `normalize_hashtags` colapsa variantes a `#NexiaGP`, dedup, cap 6.
+- **Completitud**: el pipeline garantiza adaptaciones X + Facebook.
+- **Voz de marca**: bloque de convicciones ROTATORIAS + vocabulario propio en `base_global_v1.txt`
+  (para dejar de sonar a agencia intercambiable).
+
+---
+
+## Tipos de post (11) y prompts (19)
+
+**11 tipos** en `src/domain/editorial.py` (POST_TYPES) y `prompt_service` (POST_TYPE_PROMPTS +
+PROMPT_REGISTRY) y en el enum de `planner.schema.json`:
+
+Originales (7): `marca_propuesta_valor`, `educativo_autoridad`, `sector_solucion`,
+`fabricante_colaborador`, `proyecto_prescripcion`, `servicio_proceso_operativa`,
+`actualidad_lectura_mercado`.
+
+**Nuevos en sesion 4 (4 formatos de alto engagement)** — redactados y revisados de forma adversarial
+por un workflow de 8 agentes:
+- `founder_pov` — voz del fundador en 1a persona, conviccion abierta a debate.
+- `social_proof_caso` — prueba social cualitativa (guardarrail anti-invencion de cifras/clientes).
+- `encuesta_pulso` — encuesta nativa de LinkedIn con opciones de voto.
+- `dato_opinion` — dato/senal del sector + tesis con postura (DATO -> TESIS -> CONSECUENCIA).
+
+**19 prompts en PROMPT_REGISTRY**: 3 core (base/planner/validator) + 11 post types + 2 transformers
+(X/Facebook) + 3 blog (planner/writer/seo). Editables desde Settings > Prompts, con versionado
+append-only en `db.json` (override-aware: `prompt_overrides[name].text` tiene prioridad sobre el `.txt`).
+
+---
+
+## Integridad de datos (nuevo en sesion 4)
+
+- `DB_LOCK` paso de `Lock` a `RLock` (reentrante).
+- `transaction()` (context manager): mantiene un unico lock durante leer -> mutar -> escribir, para
+  que dos peticiones concurrentes no se pisen (fin del *lost update*).
+- Patron para handlers largos (generacion con OpenAI): el trabajo lento se hace sobre un snapshot
+  `read_db()` y SOLO el delta se persiste en un `transaction()` corto (no se retiene el lock minutos).
+- Convertidos: `run_editorial_pipeline`, `regenerate_editorial_post`, `generate_post_image`,
+  `run_blog_pipeline`, `generate_blog_figure_image`, `generate_posts`, `run_scheduler` (daemon),
+  `adapt_editorial_post`, `patch_blog`, `delete_blog`, y los handlers PATCH/DELETE/publish de posts.
+- Deuda restante: `settings`/themes/post-types CRUD y `sync_files_to_openai` aun usan el patron
+  read_db/write_db simple (bajo riesgo). Backups: hay copias `data/db.backup-*.json` (gitignoradas).
+
+---
+
+## UI — funcionalidades (sesion 4)
+
+En `public/app.js` + `public/styles.css`:
+- **Edicion inline de posts**: boton "Editar" -> textarea de copy + inputs de hashtags/CTA ->
+  Guardar (PATCH /api/posts/:id) / Cancelar. Sincroniza campo plano + `generation.copy` +
+  `validation` y normaliza hashtags. Marca "editado".
+- **Filtros + busqueda** en Posts y Blogs (chips de estado + buscador). La lista vive en su propio
+  contenedor (`#postsList` / `#blogList`) y solo se re-renderiza ella -> el buscador no pierde foco
+  (paso hacia render incremental; el resto sigue siendo render por innerHTML).
+- **Metrica de Tokens** en la banda superior (usa `usageStats`).
+- **Export CSV / JSON** del conjunto filtrado (client-side).
+- **Preview por canal**: mockups de feed LinkedIn / X / Facebook con contador de caracteres; X
+  muestra N/280 y marca en rojo si excede.
+- **`:focus-visible`** global (accesibilidad de teclado).
+- Verificacion: la app se levanta con `.claude/launch.json` (Preview) — `python server.py` en :8787.
 
 ---
 
 ## Servicios principales
 
-- `src/ai/services/openai_client.py`
-- `src/ai/services/retrieval_service.py`
-- `src/ai/services/planner_service.py`
-- `src/ai/services/writer_service.py`
-- `src/ai/services/validator_service.py`
-- `src/ai/services/adaptation_service.py`
-- `src/ai/services/pipeline_service.py`
-- `src/ai/services/prompt_service.py` — PROMPT_REGISTRY (15 prompts), override-aware, versionado.
-- `src/ai/services/blog_pipeline.py`
-- `src/ai/services/blog_planner_service.py`
-- `src/ai/services/blog_writer_service.py`
-- `src/ai/services/blog_seo_service.py`
-- `src/ai/services/image_prompt_service.py` — genera prompt de imagen para posts via LLM.
-- `src/ai/services/image_service.py` — llama a gpt-image-2 y guarda localmente.
-- `src/ai/services/frame_composer.py` — compone el frame de marca (blur strip + linea chocolate).
-- `src/ai/services/cloudinary_service.py` — sube a Cloudinary, genera brandedUrl con logo overlay.
+- `src/ai/services/openai_client.py` — cliente Responses API + **registro de usage**.
+- `src/ai/services/context_helpers.py` — **NUEVO**: helpers puros (recent_openings, recent_angles,
+  normalize_hashtags, clip_text). Testeables sin OpenAI.
+- `src/ai/services/retrieval_service.py`, `planner_service.py`, `writer_service.py`,
+  `validator_service.py`, `adaptation_service.py` (con guardas X-280 y FB), `pipeline_service.py`.
+- `src/ai/services/prompt_service.py` — PROMPT_REGISTRY (19), POST_TYPE_PROMPTS (11), override-aware.
+- `src/ai/services/blog_pipeline.py`, `blog_planner_service.py`, `blog_writer_service.py`,
+  `blog_seo_service.py`.
+- `src/ai/services/image_prompt_service.py`, `image_service.py`, `frame_composer.py` (Pillow),
+  `cloudinary_service.py`.
 
----
-
-## Sistema de prompts
-
-15 prompts en PROMPT_REGISTRY:
-- Base: `base_global_v1`, `planner_v1`, `validator_v1`
-- Posts (7 tipos): `marca_propuesta_valor`, `educativo_autoridad`, `sector_solucion`, `fabricante_colaborador`, `proyecto_prescripcion`, `servicio_proceso_operativa`, `actualidad_lectura_mercado`
-- Adaptadores: `adaptacion_x`, `adaptacion_facebook`
-- Blog: `blog_planner_v1`, `blog_writer_v1`, `blog_seo_reviewer_v1`
-
-Sistema de overrides: `db.json > prompt_overrides[name].text` tiene prioridad sobre `.txt`.
-Versionado append-only en `db.json > prompt_versions`. UI en Settings > Prompts.
+Dependencias: **`requirements.txt`** (unica de terceros: Pillow). El resto es libreria estandar.
 
 ---
 
 ## Imagenes
 
 ### Posts
-- Modelo: `gpt-image-2` | Tamano: 1344x768 (default) | Calidad: medium (default)
-- Estilo: "Fotografia documental editorial" (default, configurable)
-- Frame: blur strip + linea chocolate (Pillow local) + logo NGP via Cloudinary (ON por defecto)
-- `ImagePromptService`: LLM genera el prompt de imagen en ingles a partir del post, angulo y brief visual.
+- Modelo `gpt-image-2` | 1344x768 (default) | calidad medium.
+- Frame: blur strip + linea chocolate (Pillow) + logo NGP via Cloudinary (ON por defecto).
 
 ### Blog
-- Tamano: 1024x576 | Calidad: standard (default, desde settings.blog.imageQuality)
-- Estilo: "Ilustracion editorial sobria"
-- Frame/overlay: OFF por defecto (usa rawUrl directo)
-- Imagenes distribuidas como figure slots en el HTML del articulo.
-
----
-
-## UI
-
-- `public/index.html` — estructura de la SPA
-- `public/app.js` — toda la logica
-- `public/styles.css` — estilos generales
-- `public/blog-preview.css` — estilos del iframe de blog (fiel a nexiagp.com)
-
-### Preview del blog — valores exactos verificados en nexiagp.com
-- Paleta: primary `#261E1E`, secondary `#EEEDEC`, text `#5B5B5B`, accent `#DBD4CC`, teal `#00ADB6`
-- Tipografia: Questrial para TODO (headings + body + botones), 15px, line-height 1.8
-- H2: 45px | H3: 24px | Boton CTA: bg #261E1E, color #EEEDEC, padding 15px 30px, radius 0, uppercase
-- Referencia: `post-7.css` del kit Elementor de nexiagp.com
+- 1024x576 | calidad standard. Frame/overlay OFF por defecto (rawUrl). Figuras distribuidas en el HTML.
 
 ---
 
 ## Endpoints utiles
 
 ```
-GET  /api/health                                  — estado de clave, modelo, VS
-GET  /api/state                                   — estado completo de la app
+GET   /api/health                                — estado de clave, modelo, VS
+GET   /api/state                                 — estado completo (incluye usageStats)
 
-POST /api/editorial/generate                      — genera post completo [CONSUME OPENAI]
-POST /api/editorial/posts/:id/regenerate          — regenera post existente [CONSUME OPENAI]
-POST /api/editorial/posts/:id/adapt               — regenera adaptaciones X/FB [CONSUME OPENAI]
-POST /api/posts/:id/generate-image               — genera imagen para post [CONSUME OPENAI]
+POST  /api/editorial/generate                    — genera post completo [CONSUME OPENAI]
+POST  /api/editorial/posts/:id/regenerate        — regenera post [CONSUME OPENAI]
+POST  /api/editorial/posts/:id/adapt             — regenera adaptaciones X/FB [CONSUME OPENAI]
+POST  /api/posts/:id/generate-image              — genera imagen de post [CONSUME OPENAI]
+PATCH /api/posts/:id                             — edita status Y copy/cta/hashtags/title (inline)
+DELETE/api/posts/:id                             — elimina post
+POST  /api/posts/:id/publish                     — publica (webhook stub si SOCIAL_WEBHOOK_URL)
 
-POST /api/blogs/generate                          — genera articulo de blog completo [CONSUME OPENAI]
-POST /api/blogs/:id/generate-figure-image         — genera imagen de figura [CONSUME OPENAI]
-PATCH /api/blogs/:id                              — actualiza estado/campos del blog
+POST  /api/blogs/generate                        — genera blog completo [CONSUME OPENAI]
+POST  /api/blogs/:id/figures/:fid/generate-image — imagen de figura [CONSUME OPENAI]
+PATCH /api/blogs/:id                             — actualiza estado/campos del blog
+DELETE/api/blogs/:id                             — elimina blog
 
-GET  /api/settings                                — lee configuracion
-PATCH /api/settings                               — actualiza config (incluye settings.blog)
-
-GET  /api/prompts                                 — lista los 15 prompts con metadatos
-GET  /api/prompts/:id                             — detalle completo de un prompt
-PUT  /api/prompts/:id                             — guarda override de un prompt
-POST /api/prompts/:id/revert                      — revierte a version anterior
-
-POST /api/files/sync-openai                       — sincroniza archivos con OpenAI Vector Store
+GET   /api/settings  · PATCH /api/settings
+GET   /api/prompts   · GET/PUT /api/prompts/:id  · POST /api/prompts/:id/revert
+POST  /api/files/upload · /api/files/import-local · /api/files/sync-openai · DELETE /api/files/:id
+POST  /api/scheduler/run
 ```
+
+(El export CSV/JSON es client-side, no endpoint.)
 
 ---
 
@@ -232,13 +293,12 @@ POST /api/files/sync-openai                       — sincroniza archivos con Op
 python server.py
 ```
 
-Abrir: `http://localhost:8787`
-
-Si el puerto esta ocupado:
+Abrir `http://localhost:8787`. Si el puerto esta ocupado:
 ```powershell
 netstat -ano | findstr :8787
-Get-Process python -ErrorAction SilentlyContinue
 ```
+
+Tambien se puede previsualizar con el Preview de Claude Code (`.claude/launch.json`, nombre `nexiagp`).
 
 ---
 
@@ -248,87 +308,60 @@ Get-Process python -ErrorAction SilentlyContinue
 # Salud del servidor
 Invoke-RestMethod -Uri 'http://localhost:8787/api/health' | ConvertTo-Json -Depth 5
 
-# Compilacion de todos los modulos Python
-python -m py_compile server.py `
-  src\ai\services\openai_client.py `
-  src\ai\services\retrieval_service.py `
-  src\ai\services\planner_service.py `
-  src\ai\services\writer_service.py `
-  src\ai\services\validator_service.py `
-  src\ai\services\adaptation_service.py `
-  src\ai\services\pipeline_service.py `
-  src\ai\services\prompt_service.py `
-  src\ai\services\blog_pipeline.py `
-  src\ai\services\blog_planner_service.py `
-  src\ai\services\blog_writer_service.py `
-  src\ai\services\blog_seo_service.py `
-  src\ai\services\image_prompt_service.py `
-  src\ai\services\image_service.py `
-  src\ai\services\frame_composer.py `
-  src\ai\services\cloudinary_service.py `
-  src\domain\editorial.py
+# Compilacion de modulos Python
+python -m py_compile server.py (ver lista completa en sesiones anteriores)
+
+# Sintaxis del frontend
+node --check public/app.js
 ```
+
+El pipeline completo se puede probar en **modo fallback** (sin OPENAI_API_KEY) para verificar las
+guardas (anti-repeticion, X<=280, hashtags, completitud) sin coste.
 
 ---
 
 ## Reglas de continuidad
 
-- **NO lanzar** `POST /api/editorial/generate`, `POST /api/blogs/generate` ni ningun endpoint de imagenes salvo peticion EXPLICITA del usuario. Todos consumen OpenAI.
-- No borrar posts/blogs de muestra. Sirven para revisar la UI sin gastar tokens.
-- No imprimir ni exponer la API key.
-- Mantener prompts separados y versionados; nunca mezclar en una sola llamada.
-- Mantener trazabilidad en UI: brief, fuentes, flags, notas de validacion y adaptaciones.
-- Al tocar la UI, no perder acciones existentes (copiar, adaptar, regenerar, publicar, marcar listo, eliminar).
+- **NO lanzar** endpoints que consuman OpenAI (`/api/editorial/generate`, `/api/blogs/generate`,
+  imagenes, ni `sync-openai`) salvo peticion EXPLICITA del usuario.
+- No borrar posts/blogs de muestra.
+- No imprimir ni exponer la API key. Recordar las acciones de seguridad pendientes.
+- Mantener prompts separados y versionados.
+- Los modelos `gpt-5.4-mini` y `gpt-image-2` son reales; no "corregirlos".
+- Al tocar la UI, no perder acciones existentes (copiar, editar, adaptar, regenerar, publicar,
+  marcar listo, eliminar, filtrar, exportar, previsualizar).
 
 ---
 
 ## PROXIMOS PASOS — Por orden de prioridad
 
-### 1. INMEDIATO: Subir KB externa al Vector Store (0 tokens de generacion)
-- Decidir si se sube al VS actual (`vs_69e91ba9d27c819197a522a6a07dae20`) o esperar al VS definitivo del cliente.
-- Si se decide subir: Library > Importar local > `data/uploads/kb-externa/` > Sincronizar OpenAI.
-- Descargar manualmente el OTLE y moverlo a `D-logistica/` antes de sincronizar.
-- **Impacto esperado**: el retrieval de posts y blogs pasara de recuperar solo web de Nexia a recuperar datos sectoriales, fiscales, macroeconomicos y turisticos de Canarias reales.
+### 1. Acciones manuales de seguridad (usuario)
+Rotar claves, borrar los `.txt` de secretos, sacar de OneDrive (ver seccion Seguridad).
 
-### 2. ALTA PRIORIDAD: Mejorar sistema de imagenes para posts
-- El `ImagePromptService` ya genera prompts en ingles via LLM — base solida.
-- Mejoras pendientes:
-  a. Añadir estilos predefinidos adicionales (no solo "Fotografia documental editorial"): opciones como "Minimalista de estudio", "Aerea / drone shot", "Macro detalle industrial".
-  b. Opcion de regenerar solo el prompt (sin generar imagen) para que el usuario lo ajuste antes.
-  c. Mejorar el prompt del `ImagePromptService`: añadir contexto de sector del post, isla especifica si la hay, tipo de post.
-  d. Revisar la composicion del frame (blur strip + chocolate line): evaluar si el resultado visual es el deseado o hay que ajustar padding_ratio, blur_radius, line_width.
-  e. Añadir opcion de "sin frame, sin overlay" para posts (ahora solo existe en blog).
+### 2. Publicacion / programacion real (mayor salto de producto)
+- Decidir plataforma: **LinkedIn API directa** vs **Buffer/Metricool** (agregadores).
+- Implica OAuth + credenciales. Es lo unico que cierra la cadena de valor (hoy la app crea pero no
+  publica). Asociar un **calendario editorial** visual.
 
-### 3. MEDIA PRIORIDAD: Funcionalidades de UI pendientes
-- Filtros y busqueda en la vista de posts (cuando haya volumen de contenido).
-- Historial de regeneraciones por post (ver versiones anteriores del post).
-- Exportacion de piezas aprobadas a CSV/JSON para entrega al cliente.
-- Boton "Generar lote" para crear varios posts de una sola vez.
+### 3. Descargar el OTLE y completar la KB
+Descargar el OTLE Informe Anual 2024 a `data/uploads/kb-externa/D-logistica/` y
+`python scripts/upload_kb.py` (subira solo ese).
 
-### 4. BAJA PRIORIDAD: Mejoras de sistema
-- Pulir detalles responsive para movil.
-- Preparar despliegue o instalador local si la app pasa a uso frecuente del cliente.
-- Añadir logs de uso (cuantos tokens se consumen por generacion) visible en UI.
-- Considerar export de articulos de blog a WordPress (WP REST API).
-
-### 5. FUTURO: Vector Store definitivo del cliente
-- Cuando Nexia GP tenga su VS de produccion, migrar los 12 archivos web + 34 PDFs KB externa.
-- La app ya soporta cambiar el vectorStoreId desde Settings sin tocar codigo.
+### 4. Pulido / deuda tecnica (opcional)
+- SSE/progreso real durante la generacion (hoy spinner; los pasos no avanzan en vivo).
+- Migrar `db.json` a SQLite si crece mucho (la transaccion atomica ya mitiga lo urgente).
+- Tests automatizados (no hay suite).
+- Aplicar `costTargetCents` como limite real usando `usageStats`.
+- Historial de versiones del contenido de posts (como ya existe para prompts).
 
 ---
 
 ## Scripts utiles
 
 ```powershell
-# Re-descargar KB externa (por si se necesita en otra maquina)
-python scripts/download_kb.py
+# Subir / completar la KB externa al Vector Store (resumible)
+python scripts/upload_kb.py
 
-# Ver cuantos archivos y peso tiene la KB descargada
-python -X utf8 -c "
-import pathlib
-base = pathlib.Path('data/uploads/kb-externa')
-files = list(base.rglob('*.pdf'))
-size = sum(f.stat().st_size for f in files)
-print(f'{len(files)} archivos, {size/1e6:.0f} MB')
-"
+# Re-descargar la KB externa (otra maquina)
+python scripts/download_kb.py
 ```
