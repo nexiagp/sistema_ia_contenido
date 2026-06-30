@@ -13,6 +13,19 @@ class OpenAIClient:
     def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
         self.api_key = api_key or os.getenv("OPENAI_API_KEY", "")
         self.model = model or os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+        # Registro de consumo por instancia (una instancia = una generacion).
+        self.usage_log: list[dict] = []
+
+    def usage_totals(self) -> dict:
+        """Agrega el usage acumulado en esta instancia."""
+        inp = sum(int(u.get("input_tokens") or 0) for u in self.usage_log)
+        out = sum(int(u.get("output_tokens") or 0) for u in self.usage_log)
+        return {
+            "calls": len(self.usage_log),
+            "input_tokens": inp,
+            "output_tokens": out,
+            "total_tokens": inp + out,
+        }
 
     @property
     def enabled(self) -> bool:
@@ -46,6 +59,13 @@ class OpenAIClient:
         if tools:
             payload["tools"] = tools
         response = self.request("/responses", method="POST", payload=payload)
+        usage = response.get("usage") or {}
+        self.usage_log.append({
+            "model": payload["model"],
+            "input_tokens": usage.get("input_tokens"),
+            "output_tokens": usage.get("output_tokens"),
+            "total_tokens": usage.get("total_tokens"),
+        })
         output = self.extract_output_text(response)
         return json.loads(output), response.get("id")
 

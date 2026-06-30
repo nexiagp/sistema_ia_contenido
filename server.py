@@ -13,6 +13,7 @@ import urllib.parse
 import urllib.request
 import uuid
 import unicodedata
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -24,6 +25,7 @@ from src.ai.services.image_service import ImageService
 from src.ai.services.cloudinary_service import CloudinaryService
 from src.ai.services.frame_composer import compose_branded_frame
 from src.ai.services.openai_client import OpenAIClient
+from src.ai.services.context_helpers import normalize_hashtags
 from src.ai.services import prompt_service
 from src.domain.editorial import AUDIENCES, CHANNELS, CTA_TYPES, OBJECTIVES, POST_TYPES, RISK_FLAGS
 from src.domain.blog import (
@@ -48,7 +50,7 @@ IMAGES_DIR = DATA_DIR / "images"
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_MODEL = "gpt-5.4-mini"
 PORT = 8787
-DB_LOCK = threading.Lock()
+DB_LOCK = threading.RLock()
 
 
 def load_env() -> None:
@@ -349,32 +351,32 @@ class AppHandler(SimpleHTTPRequestHandler):
             post_match = re.match(r"^/api/posts/([^/]+)$", path)
             if post_match and self.command == "PATCH":
                 body = self.read_json()
-                db = read_db()
-                post = next((item for item in db["posts"] if item["id"] == post_match.group(1)), None)
-                if not post:
-                    raise ApiError("Post no encontrado", 404)
-                post["status"] = normalize_status(body.get("status") or post.get("status"))
-                post["updatedAt"] = now_iso()
-                write_db(db)
-                self.send_json(decorate_state(db))
+                with transaction() as db:
+                    post = next((item for item in db["posts"] if item["id"] == post_match.group(1)), None)
+                    if not post:
+                        raise ApiError("Post no encontrado", 404)
+                    apply_post_edits(post, body)
+                    post["updatedAt"] = now_iso()
+                    state = decorate_state(db)
+                self.send_json(state)
                 return
 
             if post_match and self.command == "DELETE":
-                db = read_db()
-                db["posts"] = [item for item in db["posts"] if item["id"] != post_match.group(1)]
-                write_db(db)
-                self.send_json(decorate_state(db))
+                with transaction() as db:
+                    db["posts"] = [item for item in db["posts"] if item["id"] != post_match.group(1)]
+                    state = decorate_state(db)
+                self.send_json(state)
                 return
 
             publish_match = re.match(r"^/api/posts/([^/]+)/publish$", path)
             if publish_match and self.command == "POST":
-                db = read_db()
-                post = next((item for item in db["posts"] if item["id"] == publish_match.group(1)), None)
-                if not post:
-                    raise ApiError("Post no encontrado", 404)
-                publish_post(db, post)
-                write_db(db)
-                self.send_json(decorate_state(db))
+                with transaction() as db:
+                    post = next((item for item in db["posts"] if item["id"] == publish_match.group(1)), None)
+                    if not post:
+                        raise ApiError("Post no encontrado", 404)
+                    publish_post(db, post)
+                    state = decorate_state(db)
+                self.send_json(state)
                 return
 
             raise ApiError("Ruta no encontrada", 404)
@@ -503,9 +505,7 @@ def generate_posts(theme_id: str, post_type_id: str, count: int, desired_status:
         }
         new_posts.append(post)
 
-    db["posts"] = new_posts + db["posts"]
-    theme_ref = next(item for item in db["themes"] if item["id"] == theme["id"])
-    theme_ref["usedIdeas"] = [
+    new_idea_entries = [
         {
             "id": uid("idea"),
             "postId": post["id"],
@@ -514,26 +514,29 @@ def generate_posts(theme_id: str, post_type_id: str, count: int, desired_status:
             "createdAt": created_at,
         }
         for post in new_posts
-    ] + theme_ref.get("usedIdeas", [])
-    theme_ref["usedIdeas"] = theme_ref["usedIdeas"][:200]
-
-    if db["settings"].get("publishMode") == "auto" or desired_status == "auto":
-        for post in new_posts:
-            publish_post(db, post)
-
-    write_db(db)
-    return {"ok": True, "posts": new_posts, "provider": provider, "state": decorate_state(db)}
+    ]
+    with transaction() as fresh:  # persistencia atomica del delta sobre estado fresco
+        fresh["posts"] = new_posts + fresh.get("posts", [])
+        theme_ref = next((item for item in fresh.get("themes", []) if item["id"] == theme["id"]), None)
+        if theme_ref is not None:
+            theme_ref["usedIdeas"] = (new_idea_entries + theme_ref.get("usedIdeas", []))[:200]
+        if fresh["settings"].get("publishMode") == "auto" or desired_status == "auto":
+            for post in new_posts:
+                publish_post(fresh, post)
+        state = decorate_state(fresh)
+    return {"ok": True, "posts": new_posts, "provider": provider, "state": state}
 
 
 def run_editorial_pipeline(request: dict) -> dict:
-    db = read_db()
-    pipeline = EditorialPipeline(model=db.get("settings", {}).get("model"))
-    result = pipeline.run(request, db)
+    snapshot = read_db()
+    pipeline = EditorialPipeline(model=snapshot.get("settings", {}).get("model"))
+    result = pipeline.run(request, snapshot)
     post = result["post"]
-    db.setdefault("posts", []).insert(0, post)
-    register_editorial_idea(db, post)
-    write_db(db)
-    result["state"] = decorate_state(db)
+    with transaction() as db:  # re-lectura fresca + insercion atomica del delta
+        db.setdefault("posts", []).insert(0, post)
+        register_editorial_idea(db, post)
+        record_usage(db, result.get("usage"))
+        result["state"] = decorate_state(db)
     return result
 
 
@@ -550,22 +553,30 @@ def regenerate_editorial_post(post_id: str, body: dict) -> dict:
     pipeline = EditorialPipeline(model=db.get("settings", {}).get("model"))
     result = pipeline.run(request, db)
     result["post"]["parentPostId"] = post_id
-    db.setdefault("posts", []).insert(0, result["post"])
-    register_editorial_idea(db, result["post"])
-    write_db(db)
-    result["state"] = decorate_state(db)
+    with transaction() as fresh:
+        fresh.setdefault("posts", []).insert(0, result["post"])
+        register_editorial_idea(fresh, result["post"])
+        record_usage(fresh, result.get("usage"))
+        result["state"] = decorate_state(fresh)
     return result
 
 
 def adapt_editorial_post(post_id: str) -> dict:
-    db = read_db()
-    post = next((item for item in db.get("posts", []) if item.get("id") == post_id), None)
+    snapshot = read_db()
+    post = next((item for item in snapshot.get("posts", []) if item.get("id") == post_id), None)
     if not post:
         raise ApiError("Post no encontrado", 404)
-    pipeline = EditorialPipeline(model=db.get("settings", {}).get("model"))
-    adaptations = pipeline.adapt_existing(post, db)
-    write_db(db)
-    return {"ok": True, "adaptations": adaptations, "state": decorate_state(db)}
+    pipeline = EditorialPipeline(model=snapshot.get("settings", {}).get("model"))
+    adaptations = pipeline.adapt_existing(post, snapshot)  # trabajo lento sobre snapshot
+    with transaction() as fresh:
+        fresh_post = next((p for p in fresh.get("posts", []) if p.get("id") == post_id), None)
+        if fresh_post is None:
+            raise ApiError("Post no encontrado", 404)
+        fresh_post["adaptations"] = adaptations
+        fresh_post.setdefault("responseIds", {})["adaptation"] = post.get("responseIds", {}).get("adaptation")
+        fresh_post["updatedAt"] = now_iso()
+        state = decorate_state(fresh)
+    return {"ok": True, "adaptations": adaptations, "state": state}
 
 
 def generate_post_image(post_id: str, config: dict) -> dict:
@@ -615,7 +626,7 @@ def generate_post_image(post_id: str, config: dict) -> dict:
             print("Cloudinary upload error:", exc)
 
     now = now_iso()
-    post["image"] = {
+    image_obj = {
         "url": f"/images/{filename}",
         "brandedUrl": cloudinary_data["brandedUrl"] if cloudinary_data else None,
         "cloudinary": cloudinary_data,
@@ -625,10 +636,15 @@ def generate_post_image(post_id: str, config: dict) -> dict:
         "promptResponseId": prompt_response_id,
         "sizeBytes": size_bytes,
     }
-    post["imageLocalPath"] = str(local_path)
-    post["updatedAt"] = now
-    write_db(db)
-    return {"ok": True, "image": post["image"], "state": decorate_state(db)}
+    with transaction() as fresh:  # re-localiza el post en estado fresco y aplica el delta
+        fresh_post = next((p for p in fresh.get("posts", []) if p.get("id") == post_id), None)
+        if fresh_post is None:
+            raise ApiError("Post no encontrado", 404)
+        fresh_post["image"] = image_obj
+        fresh_post["imageLocalPath"] = str(local_path)
+        fresh_post["updatedAt"] = now
+        state = decorate_state(fresh)
+    return {"ok": True, "image": image_obj, "state": state}
 
 
 def run_blog_pipeline(request: dict) -> dict:
@@ -647,39 +663,38 @@ def run_blog_pipeline(request: dict) -> dict:
     pipeline = BlogPipeline(model=blog_settings.get("defaultModel") or db.get("settings", {}).get("model"))
     result = pipeline.run(enriched_request, db)
     blog = result["blog"]
-    db.setdefault("blogs", []).insert(0, blog)
-    write_db(db)
-    result["state"] = decorate_state(db)
+    with transaction() as fresh:
+        fresh.setdefault("blogs", []).insert(0, blog)
+        record_usage(fresh, result.get("usage"))
+        result["state"] = decorate_state(fresh)
     return result
 
 
 def patch_blog(blog_id: str, body: dict) -> dict:
-    db = read_db()
-    blog = next((item for item in db.get("blogs", []) if item.get("id") == blog_id), None)
-    if not blog:
-        raise ApiError("Blog no encontrado", 404)
     allowed_fields = {"status", "metaTitle", "metaDescription", "slug", "title", "articleHtmlOverride"}
-    for key in allowed_fields:
-        if key in body:
-            if key == "status" and body[key] not in BLOG_STATUSES:
-                continue
-            if key == "articleHtmlOverride":
-                blog.setdefault("article", {})["article_html_override"] = body[key]
-            else:
-                blog[key] = body[key]
-    blog["updatedAt"] = now_iso()
-    write_db(db)
-    return {"ok": True, "blog": blog, "state": decorate_state(db)}
+    with transaction() as db:
+        blog = next((item for item in db.get("blogs", []) if item.get("id") == blog_id), None)
+        if not blog:
+            raise ApiError("Blog no encontrado", 404)
+        for key in allowed_fields:
+            if key in body:
+                if key == "status" and body[key] not in BLOG_STATUSES:
+                    continue
+                if key == "articleHtmlOverride":
+                    blog.setdefault("article", {})["article_html_override"] = body[key]
+                else:
+                    blog[key] = body[key]
+        blog["updatedAt"] = now_iso()
+        return {"ok": True, "blog": blog, "state": decorate_state(db)}
 
 
 def delete_blog(blog_id: str) -> dict:
-    db = read_db()
-    before = len(db.get("blogs", []))
-    db["blogs"] = [item for item in db.get("blogs", []) if item.get("id") != blog_id]
-    if len(db["blogs"]) == before:
-        raise ApiError("Blog no encontrado", 404)
-    write_db(db)
-    return {"ok": True, "state": decorate_state(db)}
+    with transaction() as db:
+        before = len(db.get("blogs", []))
+        db["blogs"] = [item for item in db.get("blogs", []) if item.get("id") != blog_id]
+        if len(db["blogs"]) == before:
+            raise ApiError("Blog no encontrado", 404)
+        return {"ok": True, "state": decorate_state(db)}
 
 
 def generate_blog_figure_image(blog_id: str, figure_id: str, config: dict) -> dict:
@@ -746,7 +761,7 @@ def generate_blog_figure_image(blog_id: str, figure_id: str, config: dict) -> di
         display_url = (cloudinary_data.get("brandedUrl") if with_frame else cloudinary_data.get("rawUrl")) or f"/images/{filename}"
     else:
         display_url = f"/images/{filename}"
-    figure["image"] = {
+    image_obj = {
         "url": f"/images/{filename}",
         "displayUrl": display_url,
         "brandedUrl": (cloudinary_data or {}).get("brandedUrl"),
@@ -756,9 +771,17 @@ def generate_blog_figure_image(blog_id: str, figure_id: str, config: dict) -> di
         "generatedAt": now,
         "sizeBytes": size_bytes,
     }
-    blog["updatedAt"] = now
-    write_db(db)
-    return {"ok": True, "figure": figure, "blog": blog, "state": decorate_state(db)}
+    with transaction() as fresh:  # re-localiza blog+figura en estado fresco
+        fresh_blog = next((b for b in fresh.get("blogs", []) if b.get("id") == blog_id), None)
+        if fresh_blog is None:
+            raise ApiError("Blog no encontrado", 404)
+        fresh_figure = next((f for f in fresh_blog.get("figures", []) if f.get("figure_id") == figure_id), None)
+        if fresh_figure is None:
+            raise ApiError("Figura no encontrada", 404)
+        fresh_figure["image"] = image_obj
+        fresh_blog["updatedAt"] = now
+        result = {"ok": True, "figure": fresh_figure, "blog": fresh_blog, "state": decorate_state(fresh)}
+    return result
 
 
 def blog_options() -> dict:
@@ -1181,26 +1204,28 @@ def run_scheduler(force: bool, source: str) -> dict:
                 post["status"] = "ready"
             elif db["settings"].get("publishMode") == "auto":
                 publish_post(db, post)
-            db.setdefault("posts", []).insert(0, post)
-            register_editorial_idea(db, post)
             generated.append(post)
         except Exception as exc:
             errors.append({"themeId": theme["id"], "error": str(exc)})
 
-    latest = db
-    latest["settings"]["lastSchedulerRun"] = now_iso()
-    latest["schedulerLog"] = [
-        {
-            "id": uid("run"),
-            "createdAt": latest["settings"]["lastSchedulerRun"],
-            "source": source,
-            "generated": len(generated),
-            "errors": errors,
-        }
-    ] + latest.get("schedulerLog", [])
-    latest["schedulerLog"] = latest["schedulerLog"][:50]
-    write_db(latest)
-    return {"ok": True, "skipped": False, "generated": generated, "errors": errors, "state": decorate_state(latest)}
+    with transaction() as fresh:  # persistencia atomica de toda la tanda del scheduler
+        for post in generated:
+            fresh.setdefault("posts", []).insert(0, post)
+            register_editorial_idea(fresh, post)
+            record_usage(fresh, post.get("usage"))
+        run_at = now_iso()
+        fresh["settings"]["lastSchedulerRun"] = run_at
+        fresh["schedulerLog"] = ([
+            {
+                "id": uid("run"),
+                "createdAt": run_at,
+                "source": source,
+                "generated": len(generated),
+                "errors": errors,
+            }
+        ] + fresh.get("schedulerLog", []))[:50]
+        state = decorate_state(fresh)
+    return {"ok": True, "skipped": False, "generated": generated, "errors": errors, "state": state}
 
 
 def scheduler_loop() -> None:
@@ -1304,6 +1329,46 @@ def extract_output_text(response: dict) -> str:
                 if isinstance(content.get("output_text"), str):
                     chunks.append(content["output_text"])
     return "\n".join(chunks).strip()
+
+
+def apply_post_edits(post: dict, body: dict) -> None:
+    """Aplica ediciones inline a un post manteniendo sincronizadas las tres capas:
+    el campo plano que lee la UI, generation.copy y validation."""
+    gen_copy = post.setdefault("generation", {}).setdefault("copy", {})
+    validation = post.get("validation") if isinstance(post.get("validation"), dict) else None
+
+    if "status" in body:
+        post["status"] = normalize_status(body.get("status") or post.get("status"))
+
+    if isinstance(body.get("copy"), str):
+        text = body["copy"].strip()
+        post["copy"] = text
+        gen_copy["final_post"] = text
+        if validation is not None:
+            validation["final_post"] = text
+
+    if isinstance(body.get("cta"), str):
+        cta = body["cta"].strip()
+        post["cta"] = cta
+        gen_copy["cta"] = cta
+        if validation is not None:
+            validation["cta"] = cta
+
+    if "hashtags" in body:
+        raw = body["hashtags"]
+        if isinstance(raw, str):
+            raw = re.split(r"[\s,]+", raw)
+        tags = normalize_hashtags(raw if isinstance(raw, list) else [])
+        post["hashtags"] = tags
+        gen_copy["hashtags"] = tags
+        if validation is not None:
+            validation["hashtags"] = tags
+
+    if isinstance(body.get("title"), str):
+        post["title"] = body["title"].strip()
+
+    if any(key in body for key in ("copy", "cta", "hashtags", "title")):
+        post["edited"] = True
 
 
 def sanitize_post(post: dict) -> dict:
@@ -1463,6 +1528,7 @@ def decorate_state(db: dict) -> dict:
         "blogs": blogs,
         "schedulerLog": db.get("schedulerLog", []),
         "counts": counts,
+        "usageStats": db.get("usageStats", {"generations": 0, "calls": 0, "input_tokens": 0, "output_tokens": 0, "total_tokens": 0}),
         "editorialOptions": editorial_options()["options"],
         "blogOptions": blog_options()["options"],
         "prompts": prompt_service.list_prompts_meta(),
@@ -1497,6 +1563,39 @@ def write_db(db: dict) -> None:
         temp_path = DB_PATH.with_suffix(".json.tmp")
         temp_path.write_text(json.dumps(db, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         temp_path.replace(DB_PATH)
+
+
+@contextmanager
+def transaction():
+    """Read-modify-write atomico de db.json bajo un unico lock.
+
+    Mantiene el lock durante toda la operacion (leer -> mutar -> escribir), de modo
+    que dos peticiones concurrentes no se pisen ('lost update'). Para los handlers
+    largos (generacion con OpenAI) el patron es: hacer el trabajo lento sobre un
+    snapshot read_db() y persistir SOLO el delta dentro de un transaction() corto.
+    """
+    with DB_LOCK:
+        db = json.loads(DB_PATH.read_text(encoding="utf-8"))
+        yield db
+        temp_path = DB_PATH.with_suffix(".json.tmp")
+        temp_path.write_text(json.dumps(db, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        temp_path.replace(DB_PATH)
+
+
+def record_usage(db: dict, usage: dict | None) -> None:
+    """Acumula el consumo de tokens de una generacion en db['usageStats'] (best-effort)."""
+    if not isinstance(usage, dict):
+        return
+    stats = db.setdefault(
+        "usageStats",
+        {"generations": 0, "calls": 0, "input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+    )
+    stats["generations"] = int(stats.get("generations", 0) or 0) + 1
+    stats["calls"] = int(stats.get("calls", 0) or 0) + int(usage.get("calls") or 0)
+    stats["input_tokens"] = int(stats.get("input_tokens", 0) or 0) + int(usage.get("input_tokens") or 0)
+    stats["output_tokens"] = int(stats.get("output_tokens", 0) or 0) + int(usage.get("output_tokens") or 0)
+    stats["total_tokens"] = int(stats.get("total_tokens", 0) or 0) + int(usage.get("total_tokens") or 0)
+    stats["updatedAt"] = now_iso()
 
 
 def normalize_theme(body: dict, previous: dict | None = None) -> dict:

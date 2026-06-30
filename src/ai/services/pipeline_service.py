@@ -52,6 +52,7 @@ class EditorialPipeline:
                 adaptations = self.adapter._fallback_adapt(validation)
 
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        usage = self.client.usage_totals()
         post = {
             "id": f"post_{uuid4().hex[:12]}",
             "createdAt": now,
@@ -79,10 +80,12 @@ class EditorialPipeline:
             "postTypeLabel": brief.get("post_type"),
             "publishedAt": None,
             "publishResult": None,
+            "usage": usage,
         }
         return {
             "ok": True,
             "post": post,
+            "usage": usage,
             "brief": brief,
             "retrieval": retrieval,
             "generation": generation,
