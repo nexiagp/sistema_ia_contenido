@@ -19,6 +19,7 @@ venv/
 node_modules/
 
 # === Datos locales pesados / transitorios ===
+data/db.backup-*.json
 data/uploads/
 data/browser-profile*/
 data/images/

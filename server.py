@@ -1549,7 +1549,11 @@ def status_from_mode(mode: str | None, fallback: str) -> str:
 
 
 def list_local_documents() -> list[dict]:
-    roots = [ROOT / "Documentación Nexia", ROOT / "LinkedIn B2B Copywriting 2026.docx"]
+    roots = [
+        ROOT / "Documentación Nexia",
+        ROOT / "LinkedIn B2B Copywriting 2026.docx",
+        UPLOAD_DIR / "kb-externa",
+    ]
     docs = []
     for root in roots:
         if not root.exists():
@@ -1559,13 +1563,16 @@ def list_local_documents() -> list[dict]:
             continue
         for path in root.rglob("*"):
             if path.is_file() and path.suffix.lower() in {".txt", ".md", ".pdf", ".docx"}:
-                docs.append(
-                    {
-                        "path": path,
-                        "name": path.name,
-                        "category": "web" if "WEB" in [part.upper() for part in path.parts] else "brand",
-                    }
-                )
+                parts_upper = [part.upper() for part in path.parts]
+                if "KB-EXTERNA" in parts_upper:
+                    # Categoria por subcarpeta sectorial: "A-economia" -> "kb-economia"
+                    sector = re.sub(r"^[A-Za-z]-", "", path.parent.name) or "externa"
+                    category = f"kb-{sector}"
+                elif "WEB" in parts_upper:
+                    category = "web"
+                else:
+                    category = "brand"
+                docs.append({"path": path, "name": path.name, "category": category})
     return docs
 
 
