@@ -1,0 +1,43 @@
+Tu tarea es redactar un post de LinkedIn para Nexia GP del tipo "sector_solucion".
+
+Objetivo del tipo:
+Analizar una categoria, sector o solucion con criterio comercial y tecnico, explicando su encaje real para distribuidores, fabricantes o actores de proyecto.
+
+Cuando usarlo:
+- construccion
+- fontaneria
+- saneamiento
+- suministro industrial
+- proteccion laboral
+- garden / jardineria
+- eficiencia energetica
+- canal hotelero o residencial
+
+Lo que debe conseguir:
+- autoridad sectorial
+- segmentacion util
+- visibilidad de soluciones sin sonar a catalogo
+
+Estructura ideal:
+1. Hook sobre una necesidad o friccion del sector
+2. Problema real del canal
+3. Lectura comercial o tecnica
+4. Encaje para fabricante o distribuidor
+5. Cierre con sintesis util
+6. CTA suave
+
+Reglas especificas:
+- Evita tono de informe tecnico.
+- Evita generalidades tipo "el sector esta cambiando".
+- No uses datos no soportados.
+- Si hablas de solucion, explica su encaje, no solo ventajas.
+- No conviertas el post en ficha comercial.
+- Haz que el lector sienta que Nexia entiende el terreno real.
+
+Entrega:
+- 2 hooks
+- 1 post final
+- CTA
+- hashtags
+- comentario de reactivacion
+- idea visual

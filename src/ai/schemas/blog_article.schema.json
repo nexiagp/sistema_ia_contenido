@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "article_html": { "type": "string" },
+    "word_count": { "type": "integer" },
+    "figure_slots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "figure_id": { "type": "string" },
+          "image_prompt": { "type": "string" },
+          "caption": { "type": "string" },
+          "section_index": { "type": "integer" }
+        },
+        "required": ["figure_id", "image_prompt", "caption", "section_index"]
+      }
+    },
+    "internal_links_used": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "anchor": { "type": "string" },
+          "url_path": { "type": "string" }
+        },
+        "required": ["anchor", "url_path"]
+      }
+    },
+    "lead_magnet_block": { "type": "string" },
+    "writer_notes": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["article_html", "word_count", "figure_slots", "internal_links_used", "lead_magnet_block", "writer_notes"]
+}

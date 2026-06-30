@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "query_used": { "type": "string" },
+    "context_summary": { "type": "string" },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source_id": { "type": "string" },
+          "title": { "type": "string" },
+          "entity": { "type": "string" },
+          "source_group": { "type": "string" },
+          "excerpt": { "type": "string" },
+          "relevance": { "type": "string", "enum": ["high", "medium", "low"] }
+        },
+        "required": ["source_id", "title", "entity", "source_group", "excerpt", "relevance"]
+      }
+    },
+    "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["query_used", "context_summary", "sources", "confidence", "warnings"]
+}

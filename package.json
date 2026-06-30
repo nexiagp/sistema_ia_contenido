@@ -1,0 +1,12 @@
+{
+  "name": "nexiagp-social-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Panel de generación de posts con OpenAI Responses API para Nexia GP.",
+  "scripts": {
+    "start": "python server.py"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

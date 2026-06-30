@@ -1,0 +1,52 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "meta_title": { "type": "string" },
+    "meta_description": { "type": "string" },
+    "slug": { "type": "string" },
+    "canonical_path": { "type": "string" },
+    "schema_jsonld": { "type": "string" },
+    "open_graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "og_title": { "type": "string" },
+        "og_description": { "type": "string" },
+        "og_type": { "type": "string" },
+        "og_locale": { "type": "string" }
+      },
+      "required": ["og_title", "og_description", "og_type", "og_locale"]
+    },
+    "twitter_card": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "card": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["card", "title", "description"]
+    },
+    "focus_keyphrase_density_estimate": { "type": "number" },
+    "seo_review_flags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "title_too_long",
+          "title_too_short",
+          "description_too_long",
+          "description_too_short",
+          "keyword_density_high",
+          "missing_h1",
+          "weak_internal_linking",
+          "missing_alt_texts",
+          "slug_too_long"
+        ]
+      }
+    },
+    "seo_notes": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["meta_title", "meta_description", "slug", "canonical_path", "schema_jsonld", "open_graph", "twitter_card", "focus_keyphrase_density_estimate", "seo_review_flags", "seo_notes"]
+}

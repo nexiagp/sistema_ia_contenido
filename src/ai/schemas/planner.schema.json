@@ -1,0 +1,68 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "channel": { "type": "string", "enum": ["linkedin", "x", "facebook"] },
+    "post_type": {
+      "type": "string",
+      "enum": [
+        "marca_propuesta_valor",
+        "educativo_autoridad",
+        "sector_solucion",
+        "fabricante_colaborador",
+        "proyecto_prescripcion",
+        "servicio_proceso_operativa",
+        "actualidad_lectura_mercado"
+      ]
+    },
+    "pillar": { "type": "string" },
+    "objective": {
+      "type": "string",
+      "enum": ["autoridad", "confianza", "visibilidad_ecosistema", "conversion_suave", "actualidad", "educacion"]
+    },
+    "audience": {
+      "type": "string",
+      "enum": ["fabricantes", "distribuidores", "actores_proyecto", "mixta"]
+    },
+    "core_angle": { "type": "string" },
+    "core_thesis": { "type": "string" },
+    "why_it_matters": { "type": "string" },
+    "cta_type": {
+      "type": "string",
+      "enum": ["contacto", "comentario", "visita_showroom", "mas_info", "sin_cta_directa"]
+    },
+    "entity": { "type": "string" },
+    "sector": { "type": "string" },
+    "needs_link": { "type": "boolean" },
+    "factual_sensitivity": { "type": "string", "enum": ["low", "medium", "high"] },
+    "promotional_intensity": { "type": "string", "enum": ["low", "medium"] },
+    "human_review_level": { "type": "string", "enum": ["normal", "high"] },
+    "keywords": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "risk_notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": [
+    "channel",
+    "post_type",
+    "pillar",
+    "objective",
+    "audience",
+    "core_angle",
+    "core_thesis",
+    "why_it_matters",
+    "cta_type",
+    "entity",
+    "sector",
+    "needs_link",
+    "factual_sensitivity",
+    "promotional_intensity",
+    "human_review_level",
+    "keywords",
+    "risk_notes"
+  ]
+}

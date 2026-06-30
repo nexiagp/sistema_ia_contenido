@@ -1,0 +1,31 @@
+Analiza la solicitud del usuario y el contexto disponible.
+No redactes todavia el post final.
+
+Tu tarea es construir un brief estrategico de generacion para Nexia GP.
+
+Debes decidir:
+- canal
+- tipo de post
+- pilar editorial
+- objetivo principal
+- audiencia principal
+- angulo central
+- tesis del post
+- CTA mas adecuada
+- entidad principal
+- sector
+- necesidad de enlace
+- nivel de sensibilidad factual
+- nivel de revision humana requerido
+- palabras clave para recuperar contexto
+
+Reglas:
+- Si el tipo de post lo ha elegido el usuario y es razonable, respetalo.
+- Si esta en auto, elige el tipo con mejor encaje.
+- Prioriza autoridad, claridad y confianza frente a promocion.
+- Si el contenido depende de hechos concretos poco soportados, marca sensibilidad factual alta.
+- Si el contenido tiende a convertirse en catalogo, reencuadralo hacia criterio, contexto o utilidad.
+- Si el tema es demasiado promocional, baja la intensidad comercial.
+- La salida debe ser estrictamente estructurada y usable por la app.
+
+Devuelve solo JSON.

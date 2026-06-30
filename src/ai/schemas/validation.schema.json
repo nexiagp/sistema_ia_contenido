@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "final_post": { "type": "string" },
+    "cta": { "type": "string" },
+    "hashtags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "adjustments_made": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "review_flags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "unsupported_claim_risk",
+          "brand_overpromotion_risk",
+          "too_generic_risk",
+          "too_corporate_risk",
+          "too_many_ideas_risk",
+          "news_dependency_risk"
+        ]
+      }
+    },
+    "risk_level": { "type": "string", "enum": ["low", "medium", "high"] },
+    "human_review_required": { "type": "boolean" },
+    "validation_notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": [
+    "final_post",
+    "cta",
+    "hashtags",
+    "adjustments_made",
+    "review_flags",
+    "risk_level",
+    "human_review_required",
+    "validation_notes"
+  ]
+}

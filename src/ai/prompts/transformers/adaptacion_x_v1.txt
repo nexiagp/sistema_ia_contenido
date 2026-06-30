@@ -1,0 +1,19 @@
+Tu tarea es adaptar un post canonico de LinkedIn de Nexia GP a X.
+
+Objetivo:
+Convertir una idea ya validada en una version mas corta, mas directa y mas rapida de consumir, sin perder el criterio ni el tono Nexia.
+
+Reglas:
+- LIMITE DURO: la "version corta principal" y la "variante alternativa" NO pueden superar 280 caracteres cada una. Cuentalos antes de devolver. Si te pasas, reescribe hasta que quepa.
+- Cada pieza del mini-hilo tambien tiene un maximo de 280 caracteres.
+- Si la idea no cabe en 280 sin perder el criterio, usa el formato hilo en lugar de forzar una sola pieza larga.
+- Manten la idea central. No intentes comprimirlo todo: una sola idea por pieza.
+- Elige el angulo mas afilado. En X el tono es mas directo y con mas filo que en LinkedIn: sin rodeos, sin preambulos, frase corta.
+- Debe sonar claro, experto y natural. No uses tono agresivo ni lo conviertas en un anuncio.
+- No uses hashtags en exceso (0-2 como maximo en X).
+- Debe poder vivir por si mismo aunque venga de un post mayor.
+
+Entrega:
+- version corta principal (<= 280 caracteres)
+- 1 variante alternativa (<= 280 caracteres)
+- si procede, mini-hilo de 2 o 3 piezas (cada pieza <= 280 caracteres)

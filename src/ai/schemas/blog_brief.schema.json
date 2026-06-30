@@ -1,0 +1,97 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "search_intent": {
+      "type": "string",
+      "enum": ["informational", "comparative", "transactional", "navigational"]
+    },
+    "funnel_stage": {
+      "type": "string",
+      "enum": ["tofu", "mofu", "bofu"]
+    },
+    "framework": {
+      "type": "string",
+      "enum": ["pas", "aida", "thought_leadership", "case_study"]
+    },
+    "target_persona": { "type": "string" },
+    "thought_leadership_angle": { "type": "string" },
+    "core_thesis": { "type": "string" },
+    "primary_keyword": { "type": "string" },
+    "secondary_keywords": { "type": "array", "items": { "type": "string" } },
+    "lsi_terms": { "type": "array", "items": { "type": "string" } },
+    "estimated_word_count": { "type": "integer" },
+    "lead_magnet_suggestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["plantilla_operativa", "guia_estrategica", "informe_industria", "auditoria_calculadora", "ninguno"] },
+        "title": { "type": "string" },
+        "placement_section_index": { "type": "integer" }
+      },
+      "required": ["type", "title", "placement_section_index"]
+    },
+    "internal_links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "anchor": { "type": "string" },
+          "url_path": { "type": "string" },
+          "rationale": { "type": "string" }
+        },
+        "required": ["anchor", "url_path", "rationale"]
+      }
+    },
+    "h1": { "type": "string" },
+    "intro_hook": { "type": "string" },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "h2": { "type": "string" },
+          "key_points": { "type": "array", "items": { "type": "string" } },
+          "h3_subsections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "h3": { "type": "string" },
+                "key_points": { "type": "array", "items": { "type": "string" } }
+              },
+              "required": ["h3", "key_points"]
+            }
+          },
+          "include_image": { "type": "boolean" },
+          "image_brief": { "type": "string" },
+          "include_list_or_table": { "type": "boolean" },
+          "list_table_hint": { "type": "string" }
+        },
+        "required": ["h2", "key_points", "h3_subsections", "include_image", "image_brief", "include_list_or_table", "list_table_hint"]
+      }
+    },
+    "conclusion_thesis": { "type": "string" },
+    "cta": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["contacto_comercial", "agendar_llamada", "descarga_lead_magnet", "visita_showroom", "consulta_servicios", "ninguno"] },
+        "text": { "type": "string" },
+        "url_path": { "type": "string" }
+      },
+      "required": ["type", "text", "url_path"]
+    },
+    "notes_for_writer": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": [
+    "search_intent", "funnel_stage", "framework", "target_persona",
+    "thought_leadership_angle", "core_thesis", "primary_keyword",
+    "secondary_keywords", "lsi_terms", "estimated_word_count",
+    "lead_magnet_suggestion", "internal_links", "h1", "intro_hook",
+    "sections", "conclusion_thesis", "cta", "notes_for_writer"
+  ]
+}

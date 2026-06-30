@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "x": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "short_version": { "type": "string" },
+        "alternative": { "type": "string" },
+        "thread": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["short_version", "alternative", "thread"]
+    },
+    "facebook": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "final_post": { "type": "string" },
+        "cta": { "type": "string" }
+      },
+      "required": ["final_post", "cta"]
+    }
+  },
+  "required": ["x", "facebook"]
+}

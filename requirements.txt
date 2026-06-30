@@ -1,0 +1,10 @@
+# Dependencias Python de Nexia GP Social AI
+#
+# El proyecto usa la libreria estandar para casi todo (http.server, urllib,
+# json, cgi...). La unica dependencia de terceros es Pillow, usada por
+# src/ai/services/frame_composer.py para componer el frame de marca de las
+# imagenes de los posts.
+#
+# Instalacion:  python -m pip install -r requirements.txt
+
+Pillow>=10.0,<12.0

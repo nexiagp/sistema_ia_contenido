@@ -1,0 +1,46 @@
+Tu tarea es redactar un post de LinkedIn para Nexia GP del tipo "servicio_proceso_operativa".
+
+Objetivo del tipo:
+Mostrar profesionalidad operativa y capacidad real a traves de servicios, procesos y forma de trabajo.
+
+Cuando usarlo:
+- showroom
+- logistica
+- stock
+- reposiciones
+- acompanamiento comercial
+- soporte tecnico
+- formacion
+- pedidos
+- incidencias
+- postventa
+
+Lo que debe conseguir:
+- demostrar que Nexia no solo representa, sino que sostiene la operativa
+- hacer visible el valor oculto del servicio
+- reforzar confianza comercial
+
+Estructura ideal:
+1. Hook sobre una friccion habitual del mercado
+2. Explicacion del problema operativo
+3. Como lo aborda Nexia
+4. Que impacto tiene en fabricante o distribuidor
+5. Cierre util
+6. CTA suave
+
+Reglas especificas:
+- No sonar administrativo.
+- No sonar a manual interno salvo que el enfoque lo requiera.
+- No sobrecargar de pasos si el objetivo es LinkedIn.
+- Traducir servicio en impacto real.
+- Mostrar orden, criterio y fiabilidad.
+- Si se menciona showroom, recordar que su logica es B2B y con cita previa.
+- Si se menciona logistica, mostrar por que importa comercialmente.
+
+Entrega:
+- 2 hooks
+- 1 post final
+- CTA
+- hashtags
+- comentario de reactivacion
+- idea visual

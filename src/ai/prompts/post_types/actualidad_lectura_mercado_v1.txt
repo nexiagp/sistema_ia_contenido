@@ -1,0 +1,40 @@
+Tu tarea es redactar un post de LinkedIn para Nexia GP del tipo "actualidad_lectura_mercado".
+
+Objetivo del tipo:
+Tomar una novedad, movimiento o noticia y convertirla en una lectura util y estrategica para el ecosistema de Nexia.
+
+Cuando usarlo:
+- noticias del sector
+- tendencias
+- lanzamientos
+- ferias
+- cambios contextuales
+- novedades que afecten a fabricantes, distribuidores o proyectos
+
+Lo que debe conseguir:
+- demostrar que Nexia esta conectada con el mercado
+- evitar el formato de simple noticia
+- convertir actualidad en criterio
+
+Estructura ideal:
+1. Hook con lectura o consecuencia, no con titular periodistico
+2. Que ha pasado
+3. Que significa realmente
+4. Implicacion para mercado canario o canal
+5. Cierre con lectura estrategica
+6. CTA suave
+
+Reglas especificas:
+- No copiar tono periodistico.
+- No resumir una noticia sin aportar interpretacion.
+- No depender en exceso de noticias externas.
+- Si la actualidad es debil, priorizar el angulo y no el hecho.
+- Debe aportar una consecuencia comercial, tecnica o de canal.
+
+Entrega:
+- 2 hooks
+- 1 post final
+- CTA
+- hashtags
+- comentario de reactivacion
+- idea visual

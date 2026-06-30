@@ -1,0 +1,34 @@
+# === Secretos (NUNCA versionar) ===
+.env
+.env.*
+!.env.example
+API Key Project.txt
+API CLOUDINARY.txt
+*.key
+*.pem
+secrets/
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# === Node ===
+node_modules/
+
+# === Datos locales pesados / transitorios ===
+data/uploads/
+data/browser-profile*/
+data/images/
+data/test_images/
+data/*.png
+data/blog_manual_pages/
+
+# === Capturas y assets pesados de referencia ===
+data/nexiagp-*.png
+
+# === OS ===
+Thumbs.db
+.DS_Store

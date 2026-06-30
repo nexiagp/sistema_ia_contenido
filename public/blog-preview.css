@@ -1,0 +1,263 @@
+/* Preview stylesheet for the blog iframe.
+   FAITHFUL to nexiagp.com — palette + typography lifted from the live Elementor kit-7
+   AND verified against computed styles on the rendered article pages:
+   - Questrial for EVERYTHING (body + headings + buttons). DM Sans is loaded by the kit
+     but only applied to form inputs on the live site.
+   - Body bg: accent beige #DBD4CC across the entire page (not white).
+   - Body text: #5B5B5B, 15px, line-height 1.8 (27px).
+   - H2: 45px / 1.3 / weight 600 / color #261E1E. */
+
+@import url('https://fonts.googleapis.com/css2?family=Questrial&display=swap');
+
+:root {
+  --np-primary: #261E1E;
+  --np-secondary: #EEEDEC;
+  --np-text: #5B5B5B;
+  --np-accent: #DBD4CC;
+  --np-cream: #F4ECE2;
+  --np-teal: #00ADB6;
+  --np-border: rgba(167, 167, 167, 0.42);   /* #A7A7A76B */
+  --np-warm-gray: #C5BFB7;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--np-accent);   /* #DBD4CC — matches the live page bg */
+  color: var(--np-text);
+  font-family: "Questrial", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.8;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.blog-post {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 56px 32px 96px;
+}
+
+.blog-header {
+  margin-bottom: 28px;
+}
+
+.blog-post h1 {
+  font-family: "Questrial", Arial, sans-serif;
+  font-size: 3.5rem;          /* ~52px — kit defines 63px for hero, we tone down for body context */
+  line-height: 1.25;
+  font-weight: 600;
+  color: var(--np-primary);
+  margin: 0 0 14px;
+  letter-spacing: -0.005em;
+}
+
+.blog-meta {
+  font-family: "Questrial", Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.78rem;
+  color: var(--np-text);
+  margin: 0;
+  font-weight: 500;
+}
+
+.blog-intro {
+  font-size: 1.08rem;
+  color: var(--np-primary);
+  line-height: 1.7;
+  margin: 24px 0 32px;
+}
+
+.blog-post h2 {
+  font-family: "Questrial", Arial, sans-serif;
+  font-size: 45px;            /* exact from live computed style */
+  line-height: 1.3;
+  font-weight: 600;
+  color: var(--np-primary);
+  margin: 48px 0 16px;
+}
+
+.blog-post h3 {
+  font-family: "Questrial", Arial, sans-serif;
+  font-size: 24px;            /* exact from kit token */
+  line-height: 1.3;
+  font-weight: 600;
+  color: var(--np-primary);
+  margin: 32px 0 12px;
+}
+
+.blog-post p {
+  margin: 0 0 18px;
+}
+
+.blog-post a {
+  color: var(--np-teal);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color .2s ease;
+}
+
+.blog-post a:hover {
+  color: var(--np-primary);
+}
+
+.blog-post ul, .blog-post ol {
+  padding-left: 22px;
+  margin: 0 0 22px;
+}
+
+.blog-post li {
+  margin-bottom: 8px;
+}
+
+.blog-post blockquote {
+  margin: 32px 0;
+  padding: 22px 26px;
+  border-left: 3px solid var(--np-accent);
+  background: var(--np-cream);
+  font-family: "Questrial", Arial, sans-serif;
+  font-size: 1.15rem;
+  line-height: 1.5;
+  color: var(--np-primary);
+  font-style: italic;
+}
+
+.blog-post blockquote p { margin: 0; }
+
+.blog-post table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 24px 0;
+  font-size: 0.95rem;
+}
+
+.blog-post th, .blog-post td {
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--np-border);
+}
+
+.blog-post th {
+  background: var(--np-secondary);
+  color: var(--np-primary);
+  font-family: "Questrial", Arial, sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.85rem;
+}
+
+.blog-post figure {
+  margin: 36px 0;
+  text-align: center;
+}
+
+.blog-post figure img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto 10px;
+}
+
+.blog-post figure figcaption {
+  font-family: "Questrial", Arial, sans-serif;
+  font-size: 0.85rem;
+  color: var(--np-text);
+  font-style: italic;
+}
+
+.blog-post figure:not(:has(img)) {
+  background: repeating-linear-gradient(45deg, var(--np-secondary), var(--np-secondary) 12px, var(--np-cream) 12px, var(--np-cream) 24px);
+  min-height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--np-text);
+  font-family: "Questrial", Arial, sans-serif;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.85rem;
+}
+
+.blog-post figure:not(:has(img))::before {
+  content: "Imagen pendiente · " attr(data-figure-id);
+}
+
+/* Lead magnet aside (optional, used when brief includes one) */
+.lead-magnet {
+  margin: 36px 0;
+  padding: 26px 28px;
+  background: var(--np-cream);
+  border-left: 4px solid var(--np-accent);
+}
+
+.lead-magnet h3 {
+  margin: 0 0 8px;
+  font-family: "Questrial", Arial, sans-serif;
+  color: var(--np-primary);
+}
+
+.lead-magnet .lm-download {
+  display: inline-block;
+  margin-top: 12px;
+  background: var(--np-accent);
+  color: #ffffff !important;
+  padding: 12px 28px;
+  text-decoration: none !important;
+  font-family: "Questrial", Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background .2s ease;
+}
+
+.lead-magnet .lm-download:hover {
+  background: var(--np-primary);
+}
+
+/* The "¿Comenzamos?" closing CTA — replicates the section style of the live site:
+   light secondary background band, large Questrial uppercase headline, beige button
+   that turns dark-brown on hover, no border-radius. */
+.blog-cta {
+  margin: 64px 0 0;
+  padding: 64px 28px;
+  background: var(--np-secondary);
+  text-align: center;
+  border-top: 1px solid var(--np-border);
+  border-bottom: 1px solid var(--np-border);
+}
+
+.blog-cta p {
+  font-family: "Questrial", Arial, sans-serif;
+  font-size: 2.2rem;
+  font-weight: 600;
+  margin: 0 0 26px;
+  color: var(--np-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.blog-cta .cta-link {
+  display: inline-block;
+  background: var(--np-primary);       /* #261E1E — verified against live computed style */
+  color: var(--np-secondary) !important; /* #EEEDEC — verified */
+  padding: 15px 30px;                   /* exact from live */
+  text-decoration: none !important;
+  font-family: "Questrial", Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: normal;
+  font-size: 16px;                       /* exact from live */
+  font-weight: 500;
+  border-radius: 0;
+  transition: background .2s ease, color .2s ease;
+}
+
+.blog-cta .cta-link:hover {
+  background: var(--np-accent);          /* hover flips to beige (kit hover behavior) */
+  color: #ffffff !important;
+}

@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nexia GP Social AI</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#generator" data-nav="generator" aria-label="Nexia GP Social AI">
+          <img src="/logo-web.png" alt="Nexia Growth Partner" />
+        </a>
+
+        <nav class="nav" aria-label="Principal">
+          <button class="nav-item is-active" type="button" data-nav="generator">
+            <span data-icon="spark"></span>
+            <span>Generador</span>
+          </button>
+          <button class="nav-item" type="button" data-nav="posts">
+            <span data-icon="layout"></span>
+            <span>Posts</span>
+          </button>
+          <button class="nav-item" type="button" data-nav="blogs">
+            <span data-icon="article"></span>
+            <span>Blogs</span>
+          </button>
+          <button class="nav-item" type="button" data-nav="library">
+            <span data-icon="folder"></span>
+            <span>Biblioteca</span>
+          </button>
+          <button class="nav-item" type="button" data-nav="strategy">
+            <span data-icon="target"></span>
+            <span>Temáticas</span>
+          </button>
+          <button class="nav-item" type="button" data-nav="automation">
+            <span data-icon="clock"></span>
+            <span>Automatización</span>
+          </button>
+          <button class="nav-item" type="button" data-nav="settings">
+            <span data-icon="settings"></span>
+            <span>Ajustes</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-status" id="connectionStatus"></div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Nexia Growth Partner</p>
+            <h1 id="viewTitle">Generador de posts</h1>
+          </div>
+          <div class="topbar-actions">
+            <button class="icon-button" type="button" data-action="refresh" title="Actualizar">
+              <span data-icon="refresh"></span>
+            </button>
+            <button class="primary-button" type="button" data-action="generate-open">
+              <span data-icon="spark"></span>
+              <span>Nuevo post</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="metrics-band" id="metrics"></section>
+        <div id="noticeHost"></div>
+
+        <section class="view is-active" data-view="generator" aria-labelledby="generator-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Producción</p>
+              <h2 id="generator-title">Generar contenido</h2>
+            </div>
+          </div>
+          <div id="generatorView"></div>
+        </section>
+
+        <section class="view" data-view="posts" aria-labelledby="posts-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Pipeline</p>
+              <h2 id="posts-title">Posts</h2>
+            </div>
+          </div>
+          <div id="postsView"></div>
+        </section>
+
+        <section class="view" data-view="blogs" aria-labelledby="blogs-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Editorial largo</p>
+              <h2 id="blogs-title">Blogs</h2>
+            </div>
+          </div>
+          <div id="blogsView"></div>
+        </section>
+
+        <section class="view" data-view="library" aria-labelledby="library-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">File search</p>
+              <h2 id="library-title">Biblioteca</h2>
+            </div>
+          </div>
+          <div id="libraryView"></div>
+        </section>
+
+        <section class="view" data-view="strategy" aria-labelledby="strategy-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Estrategia</p>
+              <h2 id="strategy-title">Temáticas y prompts</h2>
+            </div>
+          </div>
+          <div id="strategyView"></div>
+        </section>
+
+        <section class="view" data-view="automation" aria-labelledby="automation-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Cadencia</p>
+              <h2 id="automation-title">Automatización</h2>
+            </div>
+          </div>
+          <div id="automationView"></div>
+        </section>
+
+        <section class="view" data-view="settings" aria-labelledby="settings-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Sistema</p>
+              <h2 id="settings-title">Ajustes</h2>
+            </div>
+          </div>
+          <div id="settingsView"></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>
