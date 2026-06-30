@@ -1790,3 +1790,88 @@ button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
+.list-toolbar.compact {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.list-toolbar.compact .list-search {
+  max-width: none;
+}
+
+/* ===== Preview por canal (mockups LinkedIn / X / Facebook) ===== */
+.channel-preview {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+.cp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.cp-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+  padding: 14px;
+  border-top: 3px solid var(--line);
+}
+.cp-linkedin { border-top-color: #0a66c2; }
+.cp-x { border-top-color: #111; }
+.cp-fb { border-top-color: #1877f2; }
+.cp-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 9px;
+}
+.cp-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.cp-id { display: flex; flex-direction: column; line-height: 1.2; flex: 1 1 auto; }
+.cp-id strong { font-size: 0.85rem; }
+.cp-id small { color: var(--muted); font-size: 0.72rem; }
+.cp-logo { color: var(--muted); font-weight: 700; font-size: 0.95rem; }
+.cp-body {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  white-space: normal;
+  max-height: 240px;
+  overflow: auto;
+}
+.cp-tags {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.cp-tags span { color: #0a66c2; font-size: 0.8rem; }
+.cp-meta {
+  margin-top: 10px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.cp-meta.cp-ok { color: var(--accent); font-weight: 600; }
+.cp-meta.cp-over { color: var(--clay); font-weight: 700; }

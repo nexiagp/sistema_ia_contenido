@@ -40,10 +40,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 function bindEvents() {
   document.addEventListener("input", (event) => {
-    if (event.target && event.target.id === "postsSearch") {
+    if (!event.target) return;
+    if (event.target.id === "postsSearch") {
       app.postFilters = app.postFilters || { status: "all", q: "" };
       app.postFilters.q = event.target.value;
       renderPostsList();
+    }
+    if (event.target.id === "blogsSearch") {
+      app.blogFilters = app.blogFilters || { status: "all", q: "" };
+      app.blogFilters.q = event.target.value;
+      renderBlogList();
     }
   });
 
@@ -130,6 +136,32 @@ function bindEvents() {
         return;
       }
 
+      if (name === "posts-export-csv") {
+        const posts = getFilteredPosts();
+        if (!posts.length) return toast("No hay posts que exportar", true);
+        downloadFile("nexiagp-posts.csv", "﻿" + postsToCsv(posts), "text/csv");
+        toast(`${posts.length} posts exportados a CSV`);
+        return;
+      }
+
+      if (name === "posts-export-json") {
+        const posts = getFilteredPosts();
+        if (!posts.length) return toast("No hay posts que exportar", true);
+        downloadFile("nexiagp-posts.json", JSON.stringify(posts, null, 2), "application/json");
+        toast(`${posts.length} posts exportados a JSON`);
+        return;
+      }
+
+      if (name === "channel-preview-toggle") {
+        const panel = document.getElementById(`channel-preview-${action.dataset.id}`);
+        if (panel) {
+          const open = panel.style.display !== "none";
+          panel.style.display = open ? "none" : "block";
+          action.classList.toggle("is-active", !open);
+        }
+        return;
+      }
+
       if (name === "image-panel-toggle") {
         const panel = document.getElementById(`img-opts-${action.dataset.id}`);
         if (panel) {
@@ -189,6 +221,17 @@ function bindEvents() {
       if (name === "sync-openai") {
         await withLoading(action, () => api("/api/files/sync-openai", { method: "POST" }));
         await loadState("Biblioteca sincronizada");
+      }
+
+      if (name === "blogs-filter") {
+        app.blogFilters = app.blogFilters || { status: "all", q: "" };
+        app.blogFilters.status = action.dataset.status || "all";
+        const bar = document.getElementById("blogsToolbar");
+        bar?.querySelectorAll("[data-action='blogs-filter']").forEach((b) =>
+          b.classList.toggle("is-active", b.dataset.status === app.blogFilters.status),
+        );
+        renderBlogList();
+        return;
       }
 
       if (name === "blog-select") {
@@ -603,8 +646,41 @@ function postsToolbar() {
         ${chip("ready", "Listos")}
         ${chip("published", "Publicados")}
       </div>
-      <input id="postsSearch" class="list-search" type="search" placeholder="Buscar en posts…" value="${escapeAttr(f.q || "")}" />
+      <div class="toolbar-right">
+        <input id="postsSearch" class="list-search" type="search" placeholder="Buscar en posts…" value="${escapeAttr(f.q || "")}" />
+        <button type="button" class="ghost-button" data-action="posts-export-csv" title="Exportar lo filtrado a CSV">${iconSvg("upload")}CSV</button>
+        <button type="button" class="ghost-button" data-action="posts-export-json" title="Exportar lo filtrado a JSON">${iconSvg("upload")}JSON</button>
+      </div>
     </div>`;
+}
+
+function downloadFile(name, content, mime) {
+  const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function postsToCsv(posts) {
+  const cols = ["id", "status", "postType", "createdAt", "title", "copy", "cta", "hashtags"];
+  const esc = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+  const rows = posts.map((p) =>
+    [
+      p.id,
+      p.status,
+      p.postTypeId || p.brief?.post_type || "",
+      p.createdAt || "",
+      p.title || "",
+      p.generation?.copy?.final_post || p.copy || "",
+      p.cta || "",
+      (p.hashtags || p.generation?.copy?.hashtags || []).join(" "),
+    ]
+      .map(esc)
+      .join(","),
+  );
+  return [cols.join(","), ...rows].join("\r\n");
 }
 
 function renderPosts() {
@@ -628,6 +704,38 @@ function renderPostsList() {
   list.innerHTML = posts.length
     ? posts.map(editorialPostCard).join("")
     : `<div class="empty">${total ? "Ningún post coincide con el filtro." : "Sin posts editoriales todavía."}</div>`;
+}
+
+function channelPreview(post) {
+  const copy = (post.generation && post.generation.copy) || {};
+  const li = copy.final_post || post.copy || "";
+  const tags = copy.hashtags || post.hashtags || [];
+  const ad = post.adaptations || {};
+  const xText = (ad.x || {}).short_version || "";
+  const fb = (ad.facebook || {}).final_post || "";
+  const nl = (s) => escapeHtml(s).replace(/\n/g, "<br>");
+  const xOver = xText.length > 280;
+  return `
+    <div class="channel-preview" id="channel-preview-${escapeAttr(post.id)}" style="display:none">
+      <div class="cp-grid">
+        <div class="cp-card cp-linkedin">
+          <div class="cp-head"><span class="cp-avatar">NGP</span><div class="cp-id"><strong>Nexia Growth Partner</strong><small>Agencia comercial B2B · Canarias</small></div><span class="cp-logo">in</span></div>
+          <div class="cp-body">${li ? nl(li) : "<em>Sin texto</em>"}</div>
+          ${tags.length ? `<div class="cp-tags">${tags.map((t) => `<span>${escapeHtml(t)}</span>`).join(" ")}</div>` : ""}
+          <div class="cp-meta">${li.length} caracteres</div>
+        </div>
+        <div class="cp-card cp-x">
+          <div class="cp-head"><span class="cp-avatar">NGP</span><div class="cp-id"><strong>Nexia GP</strong><small>@nexiagp</small></div><span class="cp-logo">X</span></div>
+          <div class="cp-body">${xText ? nl(xText) : "<em>Sin adaptación a X</em>"}</div>
+          ${xText ? `<div class="cp-meta ${xOver ? "cp-over" : "cp-ok"}">${xText.length}/280${xOver ? " · excede" : ""}</div>` : ""}
+        </div>
+        <div class="cp-card cp-fb">
+          <div class="cp-head"><span class="cp-avatar">NGP</span><div class="cp-id"><strong>Nexia Growth Partner</strong><small>Facebook</small></div><span class="cp-logo">f</span></div>
+          <div class="cp-body">${fb ? nl(fb) : "<em>Sin adaptación a Facebook</em>"}</div>
+          ${fb ? `<div class="cp-meta">${fb.length} caracteres</div>` : ""}
+        </div>
+      </div>
+    </div>`;
 }
 
 function editorialPostCard(post) {
@@ -688,8 +796,10 @@ function editorialPostCard(post) {
           <div class="actions">
             <button class="primary-button" type="button" data-action="copy-final" data-id="${escapeAttr(post.id)}">${iconSvg("copy")}Copiar post</button>
             <button class="secondary-button" type="button" data-action="post-edit" data-id="${escapeAttr(post.id)}">${iconSvg("layout")}Editar</button>
+            <button class="secondary-button" type="button" data-action="channel-preview-toggle" data-id="${escapeAttr(post.id)}">${iconSvg("layout")}Previsualizar</button>
             <button class="secondary-button" type="button" data-action="adapt" data-id="${escapeAttr(post.id)}">${iconSvg("refresh")}Regenerar adaptaciones</button>
-          </div>`}
+          </div>
+          ${channelPreview(post)}`}
         </section>
 
         <aside class="review-sidebar">
@@ -768,6 +878,47 @@ function editorialPostCard(post) {
   `;
 }
 
+function blogsToolbar() {
+  const f = app.blogFilters || { status: "all", q: "" };
+  const chip = (id, label) =>
+    `<button type="button" class="filter-chip ${f.status === id ? "is-active" : ""}" data-action="blogs-filter" data-status="${id}">${label}</button>`;
+  return `
+    <div class="list-toolbar compact" id="blogsToolbar">
+      <div class="filter-chips">
+        ${chip("all", "Todos")}
+        ${chip("draft", "Borradores")}
+        ${chip("ready", "Listos")}
+        ${chip("published", "Publicados")}
+      </div>
+      <input id="blogsSearch" class="list-search" type="search" placeholder="Buscar blogs…" value="${escapeAttr(f.q || "")}" />
+    </div>`;
+}
+
+function getFilteredBlogs() {
+  const blogs = app.state.blogs || [];
+  const f = app.blogFilters || (app.blogFilters = { status: "all", q: "" });
+  const q = (f.q || "").trim().toLowerCase();
+  return blogs.filter((b) => {
+    if (f.status !== "all" && (b.status || "draft") !== f.status) return false;
+    if (q) {
+      const hay = [b.title, b.metaTitle, b.metaDescription, b.slug].filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderBlogList() {
+  const host = document.getElementById("blogList");
+  if (!host) return;
+  const blogs = getFilteredBlogs();
+  const selectedId = app.selectedBlogId || (blogs[0] && blogs[0].id);
+  const total = (app.state.blogs || []).length;
+  host.innerHTML = blogs.length
+    ? blogs.map((b) => blogListItem(b, selectedId)).join("")
+    : `<div class="empty">${total ? "Ningún blog coincide con el filtro." : "Aún no hay blogs generados."}</div>`;
+}
+
 function renderBlogs() {
   const blogOpts = app.state.blogOptions || {};
   const blogs = app.state.blogs || [];
@@ -827,7 +978,12 @@ function renderBlogs() {
 
         <div class="panel">
           <h3>Blogs (${blogs.length})</h3>
-          ${blogs.length ? `<div class="blog-list">${blogs.map((b) => blogListItem(b, selected?.id)).join("")}</div>` : `<div class="empty">Aún no hay blogs generados.</div>`}
+          ${blogs.length ? blogsToolbar() : ""}
+          <div class="blog-list" id="blogList">${
+            blogs.length
+              ? getFilteredBlogs().map((b) => blogListItem(b, selected?.id)).join("")
+              : `<div class="empty">Aún no hay blogs generados.</div>`
+          }</div>
         </div>
       </aside>
 
