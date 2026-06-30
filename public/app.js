@@ -39,6 +39,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 function bindEvents() {
+  document.addEventListener("input", (event) => {
+    if (event.target && event.target.id === "postsSearch") {
+      app.postFilters = app.postFilters || { status: "all", q: "" };
+      app.postFilters.q = event.target.value;
+      renderPostsList();
+    }
+  });
+
   document.addEventListener("click", async (event) => {
     const nav = event.target.closest("[data-nav]");
     if (nav) {
@@ -86,6 +94,40 @@ function bindEvents() {
         if (!confirm("Eliminar este post del registro?")) return;
         await withLoading(action, () => api(`/api/posts/${action.dataset.id}`, { method: "DELETE" }));
         await loadState("Post eliminado");
+      }
+
+      if (name === "post-edit") {
+        app.editingPostId = action.dataset.id;
+        renderPostsList();
+        return;
+      }
+
+      if (name === "post-edit-cancel") {
+        app.editingPostId = null;
+        renderPostsList();
+        return;
+      }
+
+      if (name === "post-edit-save") {
+        const card = action.closest(".editorial-review");
+        const payload = {
+          copy: card?.querySelector(".edit-copy")?.value ?? "",
+          hashtags: card?.querySelector(".edit-hashtags")?.value ?? "",
+          cta: card?.querySelector(".edit-cta")?.value ?? "",
+        };
+        await withLoading(action, () =>
+          api(`/api/posts/${action.dataset.id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+        );
+        app.editingPostId = null;
+        await loadState("Post actualizado");
+        return;
+      }
+
+      if (name === "posts-filter") {
+        app.postFilters = app.postFilters || { status: "all", q: "" };
+        app.postFilters.status = action.dataset.status || "all";
+        renderPosts();
+        return;
       }
 
       if (name === "image-panel-toggle") {
@@ -438,14 +480,22 @@ function updateView() {
 
 function renderMetrics() {
   const { counts } = app.state;
+  const usage = app.state.usageStats || {};
   document.getElementById("metrics").innerHTML = [
     metric("Posts", counts.posts),
     metric("Borradores", counts.draft),
     metric("Listos", counts.ready),
     metric("Publicados", counts.published),
     metric("Archivos", counts.files),
-    metric("Ideas usadas", counts.ideas),
+    metric("Tokens", formatTokens(usage.total_tokens || 0)),
   ].join("");
+}
+
+function formatTokens(n) {
+  n = Number(n) || 0;
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
 }
 
 function renderConnection() {
@@ -523,11 +573,61 @@ function renderGenerator() {
   `;
 }
 
+function allEditorialPosts() {
+  return app.state.posts.filter((post) => post.source === "editorial_pipeline" || post.generation);
+}
+
+function getFilteredPosts() {
+  const f = app.postFilters || (app.postFilters = { status: "all", q: "" });
+  const q = (f.q || "").trim().toLowerCase();
+  return allEditorialPosts().filter((post) => {
+    if (f.status !== "all" && (post.status || "draft") !== f.status) return false;
+    if (q) {
+      const hay = [post.title, post.idea, post.copy, (post.generation?.copy?.final_post)]
+        .filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function postsToolbar() {
+  const f = app.postFilters || { status: "all", q: "" };
+  const chip = (id, label) =>
+    `<button type="button" class="filter-chip ${f.status === id ? "is-active" : ""}" data-action="posts-filter" data-status="${id}">${label}</button>`;
+  return `
+    <div class="list-toolbar" id="postsToolbar">
+      <div class="filter-chips">
+        ${chip("all", "Todos")}
+        ${chip("draft", "Borradores")}
+        ${chip("ready", "Listos")}
+        ${chip("published", "Publicados")}
+      </div>
+      <input id="postsSearch" class="list-search" type="search" placeholder="Buscar en posts…" value="${escapeAttr(f.q || "")}" />
+    </div>`;
+}
+
 function renderPosts() {
-  const posts = app.state.posts.filter((post) => post.source === "editorial_pipeline" || post.generation);
-  document.getElementById("postsView").innerHTML = posts.length
-    ? `<div class="editorial-feed">${posts.map(editorialPostCard).join("")}</div>`
-    : `<div class="empty">Sin posts editoriales todavía.</div>`;
+  const host = document.getElementById("postsView");
+  if (!host.querySelector("#postsToolbar")) {
+    host.innerHTML = `${postsToolbar()}<div class="editorial-feed" id="postsList"></div>`;
+  } else {
+    // refresca solo el estado activo de los chips, sin tocar el input de busqueda
+    host.querySelectorAll("[data-action='posts-filter']").forEach((b) =>
+      b.classList.toggle("is-active", b.dataset.status === (app.postFilters?.status || "all")),
+    );
+  }
+  renderPostsList();
+}
+
+function renderPostsList() {
+  const list = document.getElementById("postsList");
+  if (!list) return;
+  const posts = getFilteredPosts();
+  const total = allEditorialPosts().length;
+  list.innerHTML = posts.length
+    ? posts.map(editorialPostCard).join("")
+    : `<div class="empty">${total ? "Ningún post coincide con el filtro." : "Sin posts editoriales todavía."}</div>`;
 }
 
 function editorialPostCard(post) {
@@ -570,15 +670,26 @@ function editorialPostCard(post) {
               <h3>Post final</h3>
             </div>
           </div>
+          ${app.editingPostId === post.id ? `
+          <div class="final-post-sheet editing">
+            <label class="edit-label">Post final<textarea class="edit-copy" rows="10">${escapeHtml(copy.final_post || post.copy || "")}</textarea></label>
+            <label class="edit-label">Hashtags (separados por espacio)<input class="edit-hashtags" value="${escapeAttr((copy.hashtags || post.hashtags || []).join(" "))}" /></label>
+            <label class="edit-label">CTA<input class="edit-cta" value="${escapeAttr(copy.cta || post.cta || "")}" /></label>
+          </div>
+          <div class="actions">
+            <button class="primary-button" type="button" data-action="post-edit-save" data-id="${escapeAttr(post.id)}">${iconSvg("check")}Guardar cambios</button>
+            <button class="ghost-button" type="button" data-action="post-edit-cancel" data-id="${escapeAttr(post.id)}">Cancelar</button>
+          </div>` : `
           <div class="final-post-sheet">
-            <p>${escapeHtml(copy.final_post || post.copy || "")}</p>
+            <p>${escapeHtml(copy.final_post || post.copy || "")}${post.edited ? ` <span class="edited-tag">editado</span>` : ""}</p>
             <div class="card-meta">${(copy.hashtags || post.hashtags || []).map((tag) => `<span class="pill">${escapeHtml(tag)}</span>`).join("")}</div>
             ${copy.cta || post.cta ? `<div class="cta-strip"><span>CTA</span><strong>${escapeHtml(copy.cta || post.cta)}</strong></div>` : ""}
           </div>
           <div class="actions">
             <button class="primary-button" type="button" data-action="copy-final" data-id="${escapeAttr(post.id)}">${iconSvg("copy")}Copiar post</button>
+            <button class="secondary-button" type="button" data-action="post-edit" data-id="${escapeAttr(post.id)}">${iconSvg("layout")}Editar</button>
             <button class="secondary-button" type="button" data-action="adapt" data-id="${escapeAttr(post.id)}">${iconSvg("refresh")}Regenerar adaptaciones</button>
-          </div>
+          </div>`}
         </section>
 
         <aside class="review-sidebar">
