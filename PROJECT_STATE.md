@@ -2,9 +2,10 @@
 
 **Fecha de referencia: 2026-08-24**
 
-La referencia operativa vigente es `docs/ARQUITECTURA_Y_OPERACION.md`. Este archivo conserva el
-histórico de decisiones y entregas anteriores; las secciones que describen únicamente `db.json`,
-Cloudinary o una aplicación local no sustituyen la arquitectura actual desplegada.
+La referencia operativa vigente es [Arquitectura y operación](docs/ARQUITECTURA_Y_OPERACION.md) y
+la guía del editor es [Guía de uso](docs/GUIA_DE_USO.md). Este archivo conserva el histórico de
+decisiones y entregas anteriores; las secciones que describen únicamente `db.json`, Cloudinary o
+una aplicación local no sustituyen la arquitectura actual desplegada.
 
 ## Estado operativo actual — 24/08/2026
 

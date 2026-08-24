@@ -4,6 +4,14 @@ Formato: por sesion y por fase. Cada entrada referencia el commit (`git log`).
 
 ---
 
+## Sesión 9 — 2026-08-24 — Guía editorial y README de continuidad
+
+- Se añade `docs/GUIA_DE_USO.md`, una guía completa para el equipo editorial: creación y revisión de posts, imágenes, blogs, biblioteca, calendario, automatización, prompts, costes y respuesta inicial ante incidencias.
+- El README se reescribe como puerta de entrada fiel a la producción: enlaza la guía, explica los límites de publicación, resume la arquitectura cloud y recoge el ciclo local, la entrega y las reglas de seguridad.
+- La documentación de arquitectura y el estado del proyecto incorporan referencias cruzadas para separar el uso cotidiano del mantenimiento técnico.
+
+---
+
 ## Sesión 8 — 2026-08-24 — Migración cloud, continuidad y control de versiones
 
 - La aplicación de contenido se despliega en Vercel (`nexiagp-content`) y conserva acceso directo

@@ -3,6 +3,8 @@
 **Actualizado:** 24 de agosto de 2026
 **Ámbito:** aplicación de contenido de Nexia GP. No cubre el chatbot.
 
+Para el trabajo diario en la interfaz, consultar primero la [Guía de uso](GUIA_DE_USO.md). Este documento es la referencia de arquitectura, despliegue, seguridad y recuperación.
+
 ## Resumen operativo
 
 La aplicación está disponible en <https://nexiagp-content.vercel.app>. Es una SPA con una API
