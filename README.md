@@ -1,22 +1,23 @@
-# Nexia GP Social AI
+# Nexia GP Content AI
 
-Sistema editorial local para generar **posts de LinkedIn** (con adaptaciones a X/Facebook) y
-**articulos de blog** para Nexia Growth Partner, usando la Responses API de OpenAI y búsqueda
-directa en Vector Stores con conocimiento sectorial de Canarias.
+Sistema editorial de Nexia Growth Partner para generar y revisar **posts de LinkedIn** (con
+adaptaciones a X/Facebook) y **artículos de blog** basados en conocimiento sectorial de Canarias.
+Está desplegado en Vercel, usa Supabase como estado y almacenamiento persistentes, y se actualiza
+automáticamente al hacer `push` a la rama `main`.
+
+Producción: <https://nexiagp-content.vercel.app>
 
 ## Continuidad del proyecto
 
-El estado actual y la documentacion completa estan en:
-- **`PROJECT_STATE.md`** — fuente de verdad: arquitectura, Vector Store, endpoints, integridad de
-  datos, calidad de contenido, UI, acciones de seguridad pendientes y proximos pasos.
-- **`CHANGELOG.md`** — historial de cambios por sesion y commit.
-- **`Documentación Nexia/2026-08-cierre-pre-entrega.md`** — punto de reanudación vigente: alcance,
-  funcionalidades implementadas, estado auditado, pruebas, riesgos y secuencia de entrega.
-- **`Documentación Nexia/2026-08-auditoria-de-entrega.md`** y
-  **`Documentación Nexia/2026-08-entrega-y-continuidad.md`** — evidencia histórica de auditoría y
-  de la entrega UX anterior. No sustituyen al cierre vigente.
+La documentación vigente está en:
 
-Leer `PROJECT_STATE.md` SIEMPRE antes de retomar el desarrollo.
+- **[`docs/ARQUITECTURA_Y_OPERACION.md`](docs/ARQUITECTURA_Y_OPERACION.md)** — referencia
+  operativa: arquitectura, responsabilidades de cada servicio, flujos, despliegue, seguridad,
+  backups e incidencias.
+- **`PROJECT_STATE.md`** — estado de continuidad e histórico técnico.
+- **`CHANGELOG.md`** — historial de cambios por sesión y commit.
+
+Leer primero `docs/ARQUITECTURA_Y_OPERACION.md` antes de retomar el desarrollo.
 
 ## Arranque
 
@@ -49,6 +50,22 @@ sin comprobar antes que pertenece a esta sesión.
 
 > Seguridad: nunca versionar `.env` ni claves en `.txt`. Si el proyecto vive en OneDrive, excluye
 > los secretos de la sincronizacion. Ver la seccion *Seguridad* de `PROJECT_STATE.md`.
+
+## Despliegue
+
+La rama `main` del repositorio de GitHub está vinculada al proyecto **Nexia GP / nexiagp-content**
+de Vercel. Tras verificar los cambios localmente:
+
+```powershell
+git add -A
+git commit -m "tipo: descripcion breve"
+git push origin main
+```
+
+Vercel crea el despliegue de producción automáticamente. El código no contiene secretos, estado
+editorial ni documentación interna: todo ello permanece en las variables seguras de Vercel y en
+Supabase. La guía completa de verificación y recuperación está en
+[`docs/ARQUITECTURA_Y_OPERACION.md`](docs/ARQUITECTURA_Y_OPERACION.md).
 
 ## Que incluye
 

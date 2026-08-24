@@ -4,6 +4,22 @@ Formato: por sesion y por fase. Cada entrada referencia el commit (`git log`).
 
 ---
 
+## Sesión 8 — 2026-08-24 — Migración cloud, continuidad y control de versiones
+
+- La aplicación de contenido se despliega en Vercel (`nexiagp-content`) y conserva acceso directo
+  mediante su URL de producción.
+- Supabase pasa a ser el sistema persistente: estado editorial transaccional, biblioteca de fuentes,
+  imágenes editoriales y activos de marca. Se migró el estado y se verificó la integridad remota.
+- La generación de imágenes se adapta a Vercel: usa `/tmp/nexiagp-images` sólo como paso temporal,
+  valida/compone el PNG y lo persiste inmediatamente en Supabase. Se corrigió el fallo de sistema
+  de archivos de solo lectura y se regeneró con éxito la imagen pendiente.
+- Se creó y publicó el repositorio `nexiagp/sistema_ia_contenido`; `main` está conectado a Vercel
+  con despliegue automático. El repositorio público excluye secretos, backups, estado vivo y
+  documentación interna.
+- Se añade `docs/ARQUITECTURA_Y_OPERACION.md` como guía vigente de operación y recuperación.
+
+---
+
 ## Sesión 7 — 2026-08-22 — Cierre editorial, PNG y calendario de ocupación
 
 **Estado de esta entrada:** cambios locales verificados en Chrome y por suite offline; no hay

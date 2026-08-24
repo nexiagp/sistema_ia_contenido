@@ -1,9 +1,27 @@
-# Nexia GP Social AI — Estado de continuidad
+# Nexia GP Content AI — Estado de continuidad
 
-**Fecha de referencia: 2026-08-22**
-**Última sesión documentada: Sesión 7 (22/08/2026) — Cierre editorial, visual y calendario**
+**Fecha de referencia: 2026-08-24**
 
-Este archivo es la fuente de verdad del proyecto. Leerlo SIEMPRE antes de retomar trabajo.
+La referencia operativa vigente es `docs/ARQUITECTURA_Y_OPERACION.md`. Este archivo conserva el
+histórico de decisiones y entregas anteriores; las secciones que describen únicamente `db.json`,
+Cloudinary o una aplicación local no sustituyen la arquitectura actual desplegada.
+
+## Estado operativo actual — 24/08/2026
+
+- **Producción:** `https://nexiagp-content.vercel.app`, proyecto Vercel `nexiagp-content` de la
+  cuenta/equipo Nexia GP. El enlace es de acceso directo (`NEXIAGP_AUTH_REQUIRED=0`).
+- **Estado y ficheros persistentes:** Supabase es la fuente de verdad; usa estado transaccional,
+  membresías y los buckets privados `source-library`, `editorial-images` y `brand-assets`.
+- **Imágenes:** en Vercel se generan en `/tmp/nexiagp-images`, se validan/componen y se suben de
+  inmediato a Supabase. No se guarda ninguna ruta efímera en el estado. Cloudinary es distribución
+  opcional, no el almacenamiento canónico.
+- **Código y despliegue:** `https://github.com/nexiagp/sistema_ia_contenido`, rama `main`, está
+  enlazado a Vercel con despliegues automáticos. El repositorio es público y excluye secretos,
+  estado editorial y documentación interna.
+- **Respaldo:** se conserva la copia local previa a la migración y el backup actual; no eliminarlos
+  sin una estrategia de retención aprobada.
+- **Pendiente no bloqueante:** `SOCIAL_WEBHOOK_URL` sigue sin configurarse, por lo que no hay
+  publicación automática real en redes. La aplicación genera, revisa y programa contenido.
 
 ---
 
