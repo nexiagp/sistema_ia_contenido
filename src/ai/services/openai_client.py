@@ -43,6 +43,10 @@ class OpenAIClient:
     ) -> tuple[dict, str | None]:
         payload: dict = {
             "model": model or self.model,
+            # The app persists only its own editorial audit trail.  Do not
+            # retain a server-side Responses object unless a future feature
+            # explicitly needs continuation state.
+            "store": False,
             "input": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},

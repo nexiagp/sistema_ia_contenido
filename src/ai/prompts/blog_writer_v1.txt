@@ -14,9 +14,9 @@ REGLAS DE REDACCION:
 - Usa la estructura del brief al pie: misma cantidad de H2, en el mismo orden, con los key_points expandidos.
 - Aplica el framework indicado (PAS / AIDA / thought_leadership / case_study) de forma reconocible.
 - Cumple con la longitud objetivo (+/- 10%) marcada por el campo `length`:
-    * corto: 600-900 palabras
-    * medio: 1000-1500 palabras
-    * largo: 1800-2500 palabras
+    * corto: 800-1200 palabras
+    * medio: 1500-2200 palabras
+    * largo: 2500-3500 palabras
   Estas cifras son MINIMOS frente a la baseline del cliente (~285w). No bajes de ahi.
 - Usa H3 dentro de un H2 cuando una seccion tenga 3+ ideas distintas que se beneficien de jerarquia. No abuses; mantener 0-2 H3 por seccion como mucho.
 - Demuestra criterio: ejemplos concretos, distinciones finas, contraposiciones reales. Nada de generalidades ("es muy importante", "en el mundo actual...").
@@ -46,7 +46,7 @@ El CTA final del articulo SIEMPRE debe ser este bloque, palabra por palabra, sin
 Si el brief sugiere un CTA distinto, IGNORALO para el cierre final: el cierre es siempre "¿Comenzamos? Contactar". Si el brief incluye un CTA tematico adicional, insertalo como parrafo dentro de la ultima seccion ANTES del bloque blog-cta, no en lugar de el.
 
 LEAD MAGNET (opcional):
-Si hay lead_magnet en el brief, insertalo en la seccion indicada como <aside class="lead-magnet"> con titulo + descripcion + <a class="lm-download">descargar</a>. NO sustituye al CTA final.
+Si hay lead_magnet en el brief, insertalo en la seccion indicada como <aside class="lead-magnet"> con titulo + descripcion + un texto de disponibilidad "Recurso en preparación". NO inventes una URL ni uses un enlace de descarga si el recurso no existe. NO sustituye al CTA final.
 
 ESTRUCTURA HTML FINAL (devuelve SOLO el contenido del articulo, sin <html><head><body>):
 <article class="blog-post">
@@ -71,5 +71,6 @@ PROHIBIDO:
 - No firmes con marcas o nombres de clientes inventados.
 - No modifiques el texto exacto del cierre "¿Comenzamos? · Contactar".
 - No metas mas figuras que las indicadas por images_per_article.
+- Los prompts de las figuras deben describir una fotografía o una escena editorial realista; no pidas mapas, diagramas, infografías, texto, rótulos ni logotipos.
 
 Devuelve SOLO el JSON valido conforme al schema (el HTML va en un campo string).

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from src.ai.services.context_helpers import recent_angles, recent_openings
 from src.ai.services.openai_client import OpenAIClient
 from src.ai.services.prompt_service import base_prompt, planner_prompt, schema
@@ -12,26 +14,23 @@ class PlannerService:
 
     def plan(self, request: dict, db: dict) -> tuple[dict, str | None]:
         if self.client.enabled:
-            try:
-                user = self._build_user_prompt(request, db)
-                return self.client.responses_json(
-                    system=f"{base_prompt()}\n\n{planner_prompt()}",
-                    user=user,
-                    schema=schema("planner.schema.json"),
-                    schema_name="nexiagp_planner",
-                    model=db.get("settings", {}).get("model") or None,
-                )
-            except Exception:
-                return self._fallback_plan(request), None
+            user = self._build_user_prompt(request, db)
+            return self.client.responses_json(
+                system=f"{base_prompt()}\n\n{planner_prompt()}",
+                user=user,
+                schema=schema("planner.schema.json"),
+                schema_name="nexiagp_planner",
+                model=db.get("settings", {}).get("model") or None,
+            )
         return self._fallback_plan(request), None
 
     @staticmethod
     def _build_user_prompt(request: dict, db: dict) -> str:
-        used_ideas = recent_angles(db, limit=15)
-        used_hooks = recent_openings(db, limit=15)
+        used_ideas = [item[:180] for item in recent_angles(db, limit=10)]
+        used_hooks = [item[:160] for item in recent_openings(db, limit=10)]
         return (
             "Construye un brief estrategico para Nexia GP.\n"
-            f"Solicitud del usuario: {request}\n"
+            f"Solicitud del usuario: {json.dumps(request, ensure_ascii=False, separators=(',', ':'))}\n"
             f"Tipos soportados: {MASTER_POST_TYPES}\n"
             f"Tesis recientes a NO repetir: {used_ideas}\n"
             f"Aperturas/hooks recientes a NO repetir: {used_hooks}\n"

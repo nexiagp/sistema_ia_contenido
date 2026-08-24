@@ -7,4 +7,4 @@
 #
 # Instalacion:  python -m pip install -r requirements.txt
 
-Pillow>=10.0,<12.0
+Pillow>=10.0,<13.0

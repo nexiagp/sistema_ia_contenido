@@ -3,12 +3,20 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from typing import Callable
 
 
 ROOT = Path(__file__).resolve().parents[3]
 PROMPT_DIR = ROOT / "src" / "ai" / "prompts"
 SCHEMA_DIR = ROOT / "src" / "ai" / "schemas"
 DB_PATH = ROOT / "data" / "db.json"
+_db_reader: Callable[[], dict] | None = None
+
+
+def configure_db_reader(reader: Callable[[], dict] | None) -> None:
+    """Inject the managed state reader without coupling prompts to HTTP code."""
+    global _db_reader
+    _db_reader = reader
 
 
 # Canonical registry of every prompt the app exposes for editing.
@@ -20,7 +28,7 @@ PROMPT_REGISTRY: "dict[str, dict]" = {
     "planner_v1.txt":       {"label": "Planner",            "group": "core_posts", "scope": "posts"},
     "validator_v1.txt":     {"label": "Validator",          "group": "core_posts", "scope": "posts"},
 
-    # --- Post types (7) ---
+    # --- Post types (11) ---
     "post_types/marca_propuesta_valor_v1.txt":     {"label": "Marca / Propuesta de valor",      "group": "post_types", "scope": "posts"},
     "post_types/educativo_autoridad_v1.txt":        {"label": "Educativo / Autoridad",           "group": "post_types", "scope": "posts"},
     "post_types/sector_solucion_v1.txt":            {"label": "Sector / Solución",               "group": "post_types", "scope": "posts"},
@@ -69,6 +77,8 @@ TRANSFORMER_PROMPTS = {
 def _read_db_safe() -> dict:
     """Read db.json best-effort; return {} on any failure (transient write window, missing file)."""
     try:
+        if _db_reader is not None:
+            return _db_reader()
         return json.loads(DB_PATH.read_text(encoding="utf-8"))
     except Exception:
         return {}

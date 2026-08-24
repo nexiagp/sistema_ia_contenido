@@ -19,13 +19,19 @@ venv/
 node_modules/
 
 # === Datos locales pesados / transitorios ===
+data/db.json
 data/db.backup-*.json
+data/migration-manifest-supabase.json
 data/uploads/
 data/browser-profile*/
 data/images/
 data/test_images/
 data/*.png
 data/blog_manual_pages/
+data/server-*.log
+
+# === Estado editorial y documentación interna (ya resguardados en Supabase/backups) ===
+Documentación Nexia/
 
 # === Capturas y assets pesados de referencia ===
 data/nexiagp-*.png

@@ -15,18 +15,28 @@ import uuid
 import unicodedata
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from http.cookies import CookieError, SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from src.ai.services.pipeline_service import EditorialPipeline
 from src.ai.services.blog_pipeline import BlogPipeline
 from src.ai.services.image_prompt_service import ImagePromptService
-from src.ai.services.image_service import ImageService
+from src.ai.services.image_service import (
+    DEFAULT_SIZE,
+    ImageService,
+    estimate_gpt_image_cost_cents,
+    image_work_dir,
+    normalize_image_request,
+    uses_ephemeral_image_work_dir,
+)
 from src.ai.services.cloudinary_service import CloudinaryService
 from src.ai.services.frame_composer import compose_branded_frame
 from src.ai.services.openai_client import OpenAIClient
 from src.ai.services.context_helpers import normalize_hashtags
+from src.ai.services.content_quality import blog_quality_gate, post_quality_gate, sanitize_article_html
 from src.ai.services import prompt_service
+from src.platform.supabase_store import SupabaseStore, SupabaseStoreError
 from src.domain.editorial import AUDIENCES, CHANNELS, CTA_TYPES, OBJECTIVES, POST_TYPES, RISK_FLAGS
 from src.domain.blog import (
     BLOG_AUDIENCES,
@@ -39,6 +49,15 @@ from src.domain.blog import (
     LEAD_MAGNET_TYPES,
     SEARCH_INTENTS,
 )
+from src.domain.visual import (
+    COMPOSITIONS,
+    DEFAULT_COMPOSITION,
+    DEFAULT_DIRECTION,
+    VISUAL_DIRECTIONS,
+    normalize_visual_choice,
+    public_visual_options,
+    visual_direction_prompt,
+)
 
 
 ROOT = Path(__file__).resolve().parent
@@ -46,11 +65,37 @@ PUBLIC_DIR = ROOT / "public"
 DATA_DIR = ROOT / "data"
 DB_PATH = DATA_DIR / "db.json"
 UPLOAD_DIR = DATA_DIR / "uploads"
-IMAGES_DIR = DATA_DIR / "images"
+IMAGES_DIR = image_work_dir()
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_MODEL = "gpt-5.4-mini"
 PORT = 8787
+MAX_JSON_BODY_BYTES = 1_000_000
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+MAX_REJECTED_BODY_DRAIN_BYTES = MAX_JSON_BODY_BYTES + 64 * 1024
+ALLOWED_UPLOAD_SUFFIXES = {".txt", ".md", ".pdf", ".docx", ".csv", ".xlsx"}
 DB_LOCK = threading.RLock()
+JOB_LOCK = threading.RLock()
+GENERATION_JOBS: dict[str, dict] = {}
+MAX_IMAGE_VARIANTS = 5
+
+GENERATION_STEPS = {
+    "editorial": [
+        ("planner", "Brief estratégico"),
+        ("retrieval", "Fuentes y contexto"),
+        ("writer", "Redacción"),
+        ("validator", "Validación editorial"),
+        ("adaptation", "Adaptaciones multicanal"),
+        ("finalizing", "Guardado y trazabilidad"),
+    ],
+    "blog": [
+        ("retrieval", "Fuentes iniciales"),
+        ("planner", "Plan SEO y editorial"),
+        ("retrieval_refined", "Fuentes afinadas"),
+        ("writer", "Redacción del artículo"),
+        ("seo", "Revisión SEO"),
+        ("finalizing", "Guardado y trazabilidad"),
+    ],
+}
 
 
 def load_env() -> None:
@@ -69,6 +114,10 @@ def load_env() -> None:
 
 load_env()
 PORT = int(os.getenv("PORT", str(PORT)))
+SUPABASE_STORE = SupabaseStore()
+STATE_VERSION_KEY = "__nexiagp_state_version"
+AUTH_COOKIE_NAME = "nexiagp_session"
+AUTH_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 8
 
 
 class AppHandler(SimpleHTTPRequestHandler):
@@ -102,7 +151,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         rel = urllib.parse.unquote(parsed.path).lstrip("/") or "index.html"
         target = (PUBLIC_DIR / rel).resolve()
-        if not str(target).startswith(str(PUBLIC_DIR.resolve())) or not target.is_file():
+        if not is_path_within(target, PUBLIC_DIR) or not target.is_file():
             self.send_json({"ok": False, "error": "Archivo no encontrado"}, status=404)
             return
 
@@ -120,7 +169,28 @@ class AppHandler(SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         try:
+            if self.command == "GET" and path == "/api/auth/config":
+                self.send_json(auth_public_config())
+                return
+
+            if self.command == "POST" and path == "/api/auth/session":
+                user = self.authenticate_request(require_bearer=True)
+                self.send_json({"ok": True, "user": public_user(user)}, extra_headers={"set-cookie": auth_cookie_header(self.bearer_token())})
+                return
+
+            if self.command == "GET" and path == "/api/auth/session":
+                user = self.authenticate_request()
+                self.send_json({"ok": True, "user": public_user(user)})
+                return
+
+            if self.command == "POST" and path == "/api/auth/logout":
+                self.send_json({"ok": True}, extra_headers={"set-cookie": expired_auth_cookie_header()})
+                return
+
             if self.command == "GET" and path == "/api/health":
+                if auth_is_required():
+                    self.send_json({"ok": True, "authRequired": True, "authConfigured": auth_is_configured()})
+                    return
                 db = read_db()
                 self.send_json(
                     {
@@ -133,8 +203,24 @@ class AppHandler(SimpleHTTPRequestHandler):
                 )
                 return
 
+            if self.command == "GET" and path == "/api/cron/daily":
+                self.require_cron_secret()
+                result = run_daily_maintenance()
+                self.send_json({"ok": True, **result})
+                return
+
+            if auth_is_required():
+                self.authenticate_request()
+                if self.command in {"POST", "PATCH", "PUT", "DELETE"}:
+                    self.require_same_origin()
+
             if self.command == "GET" and path == "/api/state":
                 self.send_json(decorate_state(read_db()))
+                return
+
+            job_match = re.match(r"^/api/jobs/([^/]+)$", path)
+            if job_match and self.command == "GET":
+                self.send_json(get_generation_job(job_match.group(1)))
                 return
 
             if self.command == "GET" and path == "/api/editorial/options":
@@ -163,8 +249,11 @@ class AppHandler(SimpleHTTPRequestHandler):
                             blog_settings[k] = v
                     normalize_blog_settings(blog_settings)
                 db["settings"]["cadenceDays"] = clamp(int(db["settings"].get("cadenceDays") or 3), 1, 30)
+                db["settings"]["schedulerEnabled"] = as_bool(db["settings"].get("schedulerEnabled"), False)
                 if db["settings"].get("publishMode") not in {"draft", "ready", "auto"}:
                     db["settings"]["publishMode"] = "draft"
+                if db["settings"].get("publishMode") == "auto" and not os.getenv("SOCIAL_WEBHOOK_URL"):
+                    db["settings"]["publishMode"] = "ready"
                 write_db(db)
                 self.send_json(decorate_state(db))
                 return
@@ -271,6 +360,10 @@ class AppHandler(SimpleHTTPRequestHandler):
                 self.send_json(result, status=201)
                 return
 
+            if self.command == "POST" and path == "/api/jobs/editorial":
+                self.send_json(start_generation_job("editorial", self.read_json()), status=202)
+                return
+
             regen_match = re.match(r"^/api/editorial/posts/([^/]+)/regenerate$", path)
             if regen_match and self.command == "POST":
                 body = self.read_json()
@@ -291,6 +384,23 @@ class AppHandler(SimpleHTTPRequestHandler):
                 self.send_json(result, status=200)
                 return
 
+            select_post_image_match = re.match(r"^/api/posts/([^/]+)/images/([^/]+)/select$", path)
+            if select_post_image_match and self.command == "POST":
+                result = select_post_image_variant(
+                    select_post_image_match.group(1), select_post_image_match.group(2)
+                )
+                self.send_json(result, status=200)
+                return
+
+            review_post_image_match = re.match(r"^/api/posts/([^/]+)/images/([^/]+)/review$", path)
+            if review_post_image_match and self.command == "POST":
+                body = self.read_json()
+                result = review_post_image_variant(
+                    review_post_image_match.group(1), review_post_image_match.group(2), body
+                )
+                self.send_json(result, status=200)
+                return
+
             if self.command == "GET" and path == "/api/blogs/options":
                 self.send_json(blog_options())
                 return
@@ -299,6 +409,10 @@ class AppHandler(SimpleHTTPRequestHandler):
                 body = self.read_json()
                 result = run_blog_pipeline(body)
                 self.send_json(result, status=201)
+                return
+
+            if self.command == "POST" and path == "/api/jobs/blog":
+                self.send_json(start_generation_job("blog", self.read_json()), status=202)
                 return
 
             blog_match = re.match(r"^/api/blogs/([^/]+)$", path)
@@ -338,14 +452,16 @@ class AppHandler(SimpleHTTPRequestHandler):
 
             file_match = re.match(r"^/api/files/([^/]+)$", path)
             if file_match and self.command == "DELETE":
-                db = read_db()
-                file_item = next((item for item in db["files"] if item["id"] == file_match.group(1)), None)
+                snapshot = read_db()
+                file_item = next((item for item in snapshot["files"] if item["id"] == file_match.group(1)), None)
                 if not file_item:
                     raise ApiError("Archivo no encontrado", 404)
                 delete_remote_file_if_possible(file_item)
-                db["files"] = [item for item in db["files"] if item["id"] != file_item["id"]]
-                write_db(db)
-                self.send_json(decorate_state(db))
+                with transaction() as db:
+                    db["files"] = [item for item in db["files"] if item["id"] != file_item["id"]]
+                    state = decorate_state(db)
+                delete_source_file_if_possible(file_item)
+                self.send_json(state)
                 return
 
             post_match = re.match(r"^/api/posts/([^/]+)$", path)
@@ -374,7 +490,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                     post = next((item for item in db["posts"] if item["id"] == publish_match.group(1)), None)
                     if not post:
                         raise ApiError("Post no encontrado", 404)
-                    publish_post(db, post)
+                    publish_post(db, post, require_webhook=True)
                     state = decorate_state(db)
                 self.send_json(state)
                 return
@@ -383,10 +499,19 @@ class AppHandler(SimpleHTTPRequestHandler):
         except ApiError as exc:
             self.send_json({"ok": False, "error": exc.message, "code": exc.code}, status=exc.status)
         except Exception as exc:
-            print("API error:", exc)
-            self.send_json({"ok": False, "error": str(exc), "code": "server_error"}, status=500)
+            print("API error:", repr(exc))
+            self.send_json(
+                {"ok": False, "error": "Error interno. Revisa el registro local para más detalle.", "code": "server_error"},
+                status=500,
+            )
 
     def handle_upload(self) -> dict:
+        length = read_content_length(self.headers)
+        if length > MAX_UPLOAD_BYTES:
+            self.discard_request_body(length)
+            raise ApiError("El archivo supera el límite de 50 MB.", 413, "payload_too_large")
+        if not self.headers.get("content-type", "").lower().startswith("multipart/form-data"):
+            raise ApiError("La carga debe usar multipart/form-data.", 415, "unsupported_media_type")
         form = cgi.FieldStorage(
             fp=self.rfile,
             headers=self.headers,
@@ -399,12 +524,17 @@ class AppHandler(SimpleHTTPRequestHandler):
         file_item = form["file"] if "file" in form else None
         if file_item is None or not getattr(file_item, "filename", ""):
             raise ApiError("No se recibio ningun archivo", 400)
-        category = form.getfirst("category", "general")
-        buffer = file_item.file.read()
+        file_name = sanitize_filename(file_item.filename)
+        if Path(file_name).suffix.lower() not in ALLOWED_UPLOAD_SUFFIXES:
+            raise ApiError("Formato no admitido. Usa TXT, MD, PDF, DOCX, CSV o XLSX.", 415, "unsupported_media_type")
+        category = re.sub(r"[^a-z0-9_-]+", "-", str(form.getfirst("category", "general")).lower()).strip("-")[:60] or "general"
+        buffer = file_item.file.read(MAX_UPLOAD_BYTES + 1)
+        if len(buffer) > MAX_UPLOAD_BYTES:
+            raise ApiError("El archivo supera el límite de 50 MB.", 413, "payload_too_large")
         db = read_db()
         registered = register_file(
             db,
-            file_name=sanitize_filename(file_item.filename),
+            file_name=file_name,
             mime_type=file_item.type or "application/octet-stream",
             buffer=buffer,
             category=category,
@@ -414,33 +544,133 @@ class AppHandler(SimpleHTTPRequestHandler):
         return {"ok": True, "file": registered, "state": decorate_state(db)}
 
     def serve_image_file(self) -> None:
+        if auth_is_required():
+            try:
+                self.authenticate_request()
+            except ApiError as exc:
+                self.send_json({"ok": False, "error": exc.message, "code": exc.code}, status=exc.status)
+                return
         filename = urllib.parse.unquote(self.path[len("/images/"):].split("?")[0])
+        if SUPABASE_STORE.enabled:
+            if not filename or "/" in filename or "\\" in filename or filename in {".", ".."}:
+                self.send_json({"ok": False, "error": "Imagen no encontrada"}, status=404)
+                return
+            try:
+                data, headers = SUPABASE_STORE.download_object("editorial-images", filename)
+            except SupabaseStoreError:
+                self.send_json({"ok": False, "error": "Imagen no encontrada"}, status=404)
+                return
+            content_type = headers.get("Content-Type") or headers.get("content-type") or mime_from_filename(filename)
+            self.send_response(200)
+            self.send_header("content-type", content_type)
+            self.send_header("content-length", str(len(data)))
+            self.send_header(
+                "cache-control",
+                "private, no-store" if auth_is_required() else "public, max-age=31536000, immutable",
+            )
+            self.end_headers()
+            self.wfile.write(data)
+            return
         target = (IMAGES_DIR / filename).resolve()
-        if not str(target).startswith(str(IMAGES_DIR.resolve())) or not target.is_file():
+        if not is_path_within(target, IMAGES_DIR) or not target.is_file():
             self.send_json({"ok": False, "error": "Imagen no encontrada"}, status=404)
             return
         ext = target.suffix.lower()
-        content_type = {"jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}.get(ext, "image/png")
+        content_type = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}.get(ext, "image/png")
         self.send_response(200)
         self.send_header("content-type", content_type)
         self.send_header("content-length", str(target.stat().st_size))
-        self.send_header("cache-control", "public, max-age=31536000, immutable")
+        self.send_header(
+            "cache-control",
+            "private, no-store" if auth_is_required() else "public, max-age=31536000, immutable",
+        )
         self.end_headers()
         with target.open("rb") as fh:
             shutil.copyfileobj(fh, self.wfile)
 
     def read_json(self) -> dict:
-        length = int(self.headers.get("content-length", "0") or 0)
+        length = read_content_length(self.headers)
         if not length:
             return {}
+        if length > MAX_JSON_BODY_BYTES:
+            self.discard_request_body(length)
+            raise ApiError("La solicitud JSON supera el límite permitido.", 413, "payload_too_large")
         raw = self.rfile.read(length)
-        return json.loads(raw.decode("utf-8"))
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ApiError("El JSON de la solicitud no es válido.", 400, "invalid_json") from exc
+        if not isinstance(payload, dict):
+            raise ApiError("El JSON de la solicitud debe ser un objeto.", 400, "invalid_json")
+        return payload
 
-    def send_json(self, payload: dict, status: int = 200) -> None:
+    def discard_request_body(self, length: int) -> None:
+        """Drain bounded rejected bodies so ordinary clients receive their 413."""
+        remaining = min(length, MAX_REJECTED_BODY_DRAIN_BYTES)
+        while remaining > 0:
+            chunk = self.rfile.read(min(64 * 1024, remaining))
+            if not chunk:
+                break
+            remaining -= len(chunk)
+        if length > MAX_REJECTED_BODY_DRAIN_BYTES:
+            self.close_connection = True
+
+    def bearer_token(self) -> str:
+        authorization = self.headers.get("authorization", "")
+        prefix = "Bearer "
+        if authorization.startswith(prefix):
+            return authorization[len(prefix):].strip()
+        return ""
+
+    def cookie_token(self) -> str:
+        raw_cookie = self.headers.get("cookie", "")
+        if not raw_cookie:
+            return ""
+        parsed = SimpleCookie()
+        try:
+            parsed.load(raw_cookie)
+        except (CookieError, ValueError):
+            return ""
+        morsel = parsed.get(AUTH_COOKIE_NAME)
+        return morsel.value if morsel else ""
+
+    def authenticate_request(self, require_bearer: bool = False) -> dict:
+        if not auth_is_configured():
+            raise ApiError("El acceso protegido no está configurado todavía.", 503, "auth_not_configured")
+        token = self.bearer_token() if require_bearer else (self.bearer_token() or self.cookie_token())
+        if not token:
+            raise ApiError("Inicia sesión para continuar.", 401, "authentication_required")
+        try:
+            identity = SUPABASE_STORE.authenticated_user(token)
+            member = SUPABASE_STORE.active_member(identity["id"])
+        except SupabaseStoreError as exc:
+            raise ApiError("La sesión no es válida o ha caducado.", 401, "invalid_session") from exc
+        if not member:
+            raise ApiError("Tu cuenta no tiene acceso a Nexia GP Content.", 403, "access_denied")
+        return {"id": identity["id"], "email": str(identity.get("email") or ""), "role": member.get("role", "viewer")}
+
+    def require_same_origin(self) -> None:
+        origin = self.headers.get("origin", "")
+        host = self.headers.get("host", "")
+        proto = (self.headers.get("x-forwarded-proto", "https").split(",")[0].strip() or "https")
+        expected = f"{proto}://{host}"
+        if not origin or not host or origin != expected:
+            raise ApiError("Solicitud rechazada por protección de origen.", 403, "invalid_origin")
+
+    def require_cron_secret(self) -> None:
+        secret = os.getenv("CRON_SECRET", "")
+        if not secret:
+            raise ApiError("El cron no está configurado.", 503, "cron_not_configured")
+        if self.headers.get("authorization", "") != f"Bearer {secret}":
+            raise ApiError("Cron no autorizado.", 401, "cron_unauthorized")
+
+    def send_json(self, payload: dict, status: int = 200, extra_headers: dict[str, str] | None = None) -> None:
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
         self.send_response(status)
         self.send_header("content-type", "application/json; charset=utf-8")
         self.send_header("content-length", str(len(body)))
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
 
@@ -451,6 +681,73 @@ class ApiError(Exception):
         self.message = message
         self.status = status
         self.code = code
+
+
+def auth_is_required() -> bool:
+    """Use an explicit setting, while remaining fail-closed on Vercel by default."""
+    configured = os.getenv("NEXIAGP_AUTH_REQUIRED", "").strip().lower()
+    if configured in {"0", "false", "no", "off"}:
+        return False
+    if configured in {"1", "true", "yes", "on"}:
+        return True
+    return os.getenv("VERCEL") == "1"
+
+
+def auth_is_configured() -> bool:
+    return bool(
+        SUPABASE_STORE.enabled
+        and os.getenv("SUPABASE_PUBLISHABLE_KEY", "").strip()
+    )
+
+
+def auth_public_config() -> dict:
+    required = auth_is_required()
+    configured = auth_is_configured()
+    payload = {"ok": True, "required": required, "configured": configured}
+    if required and configured:
+        payload.update(
+            {
+                "url": SUPABASE_STORE.url,
+                "publishableKey": os.getenv("SUPABASE_PUBLISHABLE_KEY", ""),
+            }
+        )
+    return payload
+
+
+def public_user(user: dict) -> dict:
+    return {"email": user.get("email", ""), "role": user.get("role", "viewer")}
+
+
+def auth_cookie_header(token: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", token or ""):
+        raise ApiError("La sesión recibida no tiene un formato válido.", 401, "invalid_session")
+    return (
+        f"{AUTH_COOKIE_NAME}={token}; Path=/; Max-Age={AUTH_COOKIE_MAX_AGE_SECONDS}; "
+        "HttpOnly; Secure; SameSite=Strict"
+    )
+
+
+def expired_auth_cookie_header() -> str:
+    return f"{AUTH_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict"
+
+
+def read_content_length(headers) -> int:
+    raw = headers.get("content-length", "0") or "0"
+    try:
+        length = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ApiError("Content-Length inválido.", 400, "invalid_content_length") from exc
+    if length < 0:
+        raise ApiError("Content-Length inválido.", 400, "invalid_content_length")
+    return length
+
+
+def is_path_within(target: Path, parent: Path) -> bool:
+    try:
+        target.resolve().relative_to(parent.resolve())
+    except ValueError:
+        return False
+    return True
 
 
 def generate_posts(theme_id: str, post_type_id: str, count: int, desired_status: str | None, source: str) -> dict:
@@ -527,10 +824,10 @@ def generate_posts(theme_id: str, post_type_id: str, count: int, desired_status:
     return {"ok": True, "posts": new_posts, "provider": provider, "state": state}
 
 
-def run_editorial_pipeline(request: dict) -> dict:
+def run_editorial_pipeline(request: dict, on_progress=None) -> dict:
     snapshot = read_db()
     pipeline = EditorialPipeline(model=snapshot.get("settings", {}).get("model"))
-    result = pipeline.run(request, snapshot)
+    result = pipeline.run(request, snapshot, on_step=on_progress)
     post = result["post"]
     with transaction() as db:  # re-lectura fresca + insercion atomica del delta
         db.setdefault("posts", []).insert(0, post)
@@ -579,6 +876,84 @@ def adapt_editorial_post(post_id: str) -> dict:
     return {"ok": True, "adaptations": adaptations, "state": state}
 
 
+def _ensure_image_variant_id(image: dict) -> str:
+    """Give legacy and newly generated images a durable, local identifier."""
+    image_id = str(image.get("id") or "").strip()
+    if image_id:
+        return image_id
+    fingerprint = str(
+        image.get("url")
+        or image.get("displayUrl")
+        or image.get("generatedAt")
+        or "nexia-image"
+    )
+    image_id = f"img_{uuid.uuid5(uuid.NAMESPACE_URL, fingerprint).hex[:16]}"
+    image["id"] = image_id
+    return image_id
+
+
+def post_image_variants(post: dict) -> list[dict]:
+    """Return a de-duplicated, newest-first set of reusable visual concepts."""
+    candidates: list[dict] = []
+    active_image = post.get("image")
+    if isinstance(active_image, dict):
+        candidates.append(active_image)
+    candidates.extend(item for item in post.get("imageVariants", []) if isinstance(item, dict))
+
+    variants: list[dict] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        image_id = _ensure_image_variant_id(candidate)
+        if image_id in seen:
+            continue
+        seen.add(image_id)
+        variants.append(candidate)
+    return variants[:MAX_IMAGE_VARIANTS]
+
+
+def _find_post_image_variant(post: dict, image_id: str) -> tuple[list[dict], dict]:
+    variants = post_image_variants(post)
+    target = next((item for item in variants if item.get("id") == image_id), None)
+    if target is None:
+        raise ApiError("Concepto visual no encontrado", 404)
+    return variants, target
+
+
+def select_post_image_variant(post_id: str, image_id: str) -> dict:
+    """Make a retained visual concept the image currently used by the draft."""
+    with transaction() as fresh:
+        post = next((item for item in fresh.get("posts", []) if item.get("id") == post_id), None)
+        if post is None:
+            raise ApiError("Post no encontrado", 404)
+        variants, target = _find_post_image_variant(post, image_id)
+        post["imageVariants"] = variants
+        post["image"] = target
+        post["updatedAt"] = now_iso()
+        state = decorate_state(fresh)
+    return {"ok": True, "image": target, "state": state}
+
+
+def review_post_image_variant(post_id: str, image_id: str, payload: dict) -> dict:
+    """Persist a deliberately small human approval signal for the chosen visual."""
+    approved = as_bool(payload.get("approved"), True)
+    with transaction() as fresh:
+        post = next((item for item in fresh.get("posts", []) if item.get("id") == post_id), None)
+        if post is None:
+            raise ApiError("Post no encontrado", 404)
+        variants, target = _find_post_image_variant(post, image_id)
+        target["review"] = {
+            "status": "approved" if approved else "pending",
+            "reviewedAt": now_iso() if approved else None,
+            "checklistVersion": 1,
+        }
+        post["imageVariants"] = variants
+        if isinstance(post.get("image"), dict) and post["image"].get("id") == image_id:
+            post["image"] = target
+        post["updatedAt"] = now_iso()
+        state = decorate_state(fresh)
+    return {"ok": True, "image": target, "state": state}
+
+
 def generate_post_image(post_id: str, config: dict) -> dict:
     db = read_db()
     post = next((item for item in db.get("posts", []) if item.get("id") == post_id), None)
@@ -586,16 +961,32 @@ def generate_post_image(post_id: str, config: dict) -> dict:
         raise ApiError("Post no encontrado", 404)
     if not os.getenv("OPENAI_API_KEY"):
         raise ApiError("Falta OPENAI_API_KEY", 400)
+    if uses_ephemeral_image_work_dir() and not SUPABASE_STORE.enabled:
+        raise ApiError(
+            "El almacenamiento persistente de imágenes no está configurado en este entorno.",
+            503,
+        )
 
-    style = config.get("style") or "Fotografía documental editorial"
     user_notes = config.get("userNotes") or ""
-    size = config.get("size") or "1344x768"
-    quality = config.get("quality") or "medium"
-    with_frame = bool(config.get("withFrame", True))
+    size, quality = normalize_image_request(config.get("size") or DEFAULT_SIZE, config.get("quality") or "medium")
+    with_frame = as_bool(config.get("withFrame"), True)
+    direction, composition = normalize_visual_choice(
+        config.get("direction") or DEFAULT_DIRECTION,
+        config.get("composition") or DEFAULT_COMPOSITION,
+    )
+    style = f"{VISUAL_DIRECTIONS[direction]['label']} · {COMPOSITIONS[composition]['label']}"
 
     client = OpenAIClient(model=db.get("settings", {}).get("model"))
-    image_prompt, prompt_response_id = ImagePromptService(client).generate_prompt(post, style, user_notes)
-    filename, size_bytes = ImageService().generate(image_prompt, size=size, quality=quality)
+    prompt_result, prompt_response_id = ImagePromptService(client).generate_prompt(
+        post,
+        direction,
+        composition,
+        user_notes,
+        with_frame=with_frame,
+    )
+    image_prompt = prompt_result["image_prompt"]
+    generated_image = ImageService().generate(image_prompt, size=size, quality=quality)
+    filename = generated_image.filename
     local_path = IMAGES_DIR / filename
 
     # If with_frame: compose framed version (blurred strip + chocolate line)
@@ -607,6 +998,13 @@ def generate_post_image(post_id: str, config: dict) -> dict:
     else:
         upload_path = local_path
         public_id_suffix = ""
+    local_display_url = f"/images/{upload_path.name}"
+    if SUPABASE_STORE.enabled:
+        # Persist both original and composed assets before the serverless
+        # invocation ends: Vercel's filesystem is only temporary.
+        SUPABASE_STORE.upload_object("editorial-images", filename, local_path.read_bytes(), "image/png")
+        if upload_path.name != filename:
+            SUPABASE_STORE.upload_object("editorial-images", upload_path.name, upload_path.read_bytes(), "image/png")
 
     cloudinary_data: dict | None = None
     cloudinary = CloudinaryService()
@@ -619,7 +1017,10 @@ def generate_post_image(post_id: str, config: dict) -> dict:
                 "publicId": upload_result.get("public_id"),
                 "version": version,
                 "rawUrl": upload_result.get("secure_url"),
-                "brandedUrl": cloudinary.build_branded_url(upload_result["public_id"], version=version),
+                # The frame composer already embedded the approved logo locally.
+                # Store that exact uploaded asset instead of applying a second,
+                # CDN-dependent overlay transformation.
+                "brandedUrl": upload_result.get("secure_url") if with_frame else None,
                 "withFrame": with_frame,
             }
         except Exception as exc:
@@ -627,27 +1028,60 @@ def generate_post_image(post_id: str, config: dict) -> dict:
 
     now = now_iso()
     image_obj = {
+        "id": uid("img"),
         "url": f"/images/{filename}",
-        "brandedUrl": cloudinary_data["brandedUrl"] if cloudinary_data else None,
+        "displayUrl": (
+            cloudinary_data.get("brandedUrl") if cloudinary_data and with_frame
+            else cloudinary_data.get("rawUrl") if cloudinary_data
+            else local_display_url
+        ),
+        "brandedUrl": cloudinary_data["brandedUrl"] if cloudinary_data else local_display_url if with_frame else None,
         "cloudinary": cloudinary_data,
         "prompt": image_prompt,
-        "config": {"style": style, "size": size, "quality": quality, "userNotes": user_notes, "withFrame": with_frame},
+        "sceneRationale": prompt_result.get("scene_rationale", ""),
+        "config": {
+            "style": style,
+            "direction": direction,
+            "composition": composition,
+            "size": size,
+            "quality": quality,
+            "userNotes": user_notes,
+            "withFrame": with_frame,
+        },
+        "review": {"status": "pending", "reviewedAt": None, "checklistVersion": 1},
         "generatedAt": now,
         "promptResponseId": prompt_response_id,
-        "sizeBytes": size_bytes,
+        "sizeBytes": generated_image.size_bytes,
+        "validation": generated_image.validation(),
     }
     with transaction() as fresh:  # re-localiza el post en estado fresco y aplica el delta
         fresh_post = next((p for p in fresh.get("posts", []) if p.get("id") == post_id), None)
         if fresh_post is None:
             raise ApiError("Post no encontrado", 404)
+        existing_variants = [
+            item for item in post_image_variants(fresh_post)
+            if item.get("id") != image_obj["id"]
+        ]
+        fresh_post["imageVariants"] = [image_obj, *existing_variants][:MAX_IMAGE_VARIANTS]
         fresh_post["image"] = image_obj
-        fresh_post["imageLocalPath"] = str(local_path)
+        # A Vercel path belongs to /tmp and disappears with the invocation.  The
+        # durable asset is the matching object already uploaded to Supabase.
+        if uses_ephemeral_image_work_dir():
+            fresh_post.pop("imageLocalPath", None)
+        else:
+            fresh_post["imageLocalPath"] = str(local_path)
         fresh_post["updatedAt"] = now
         state = decorate_state(fresh)
+    if uses_ephemeral_image_work_dir():
+        for staged_path in {local_path, upload_path}:
+            try:
+                staged_path.unlink(missing_ok=True)
+            except OSError as exc:
+                print(f"No se pudo limpiar la imagen temporal {staged_path.name}: {exc}")
     return {"ok": True, "image": image_obj, "state": state}
 
 
-def run_blog_pipeline(request: dict) -> dict:
+def run_blog_pipeline(request: dict, on_progress=None) -> dict:
     db = read_db()
     blog_settings = normalize_blog_settings(dict(db.get("settings", {}).get("blog") or {}))
     # Merge configurable defaults from settings.blog if the request did not override them.
@@ -661,7 +1095,7 @@ def run_blog_pipeline(request: dict) -> dict:
         else blog_settings.get("imagesPerArticle", 2)
     )
     pipeline = BlogPipeline(model=blog_settings.get("defaultModel") or db.get("settings", {}).get("model"))
-    result = pipeline.run(enriched_request, db)
+    result = pipeline.run(enriched_request, db, on_step=on_progress)
     blog = result["blog"]
     with transaction() as fresh:
         fresh.setdefault("blogs", []).insert(0, blog)
@@ -670,8 +1104,272 @@ def run_blog_pipeline(request: dict) -> dict:
     return result
 
 
+def start_generation_job(kind: str, request: dict) -> dict:
+    """Launch an editorial or blog run without holding an HTTP request open.
+
+    The local application retains its responsive in-memory worker. In a managed
+    environment the job is first persisted in Supabase and then claimed by the
+    current Vercel invocation, so an interrupted function leaves a recoverable
+    job rather than silently losing the request.
+    """
+    if kind not in GENERATION_STEPS:
+        raise ApiError("Tipo de generación no soportado", 400)
+
+    now = now_iso()
+    job_id = uid("job")
+    job = {
+        "id": job_id,
+        "kind": kind,
+        "status": "queued",
+        "message": "Preparando la generación…",
+        "createdAt": now,
+        "updatedAt": now,
+        "resultId": None,
+        "error": None,
+        "steps": [
+            {"id": step_id, "label": label, "status": "pending"}
+            for step_id, label in GENERATION_STEPS[kind]
+        ],
+    }
+    if SUPABASE_STORE.enabled:
+        SUPABASE_STORE.create_generation_job(job_id, kind, request, generation_job_progress(job))
+        process_one_remote_generation_job()
+        remote = SUPABASE_STORE.get_generation_job(job_id)
+        if not remote:
+            raise ApiError("No se ha podido recuperar el trabajo de generación.", 500, "job_not_found")
+        return generation_job_snapshot(remote_generation_job(remote))
+
+    with JOB_LOCK:
+        GENERATION_JOBS[job_id] = job
+        # Keep memory bounded when the local server stays open for weeks.
+        completed_ids = [
+            key for key, value in GENERATION_JOBS.items()
+            if value.get("status") in {"completed", "failed"}
+        ]
+        for old_id in completed_ids[:-40]:
+            GENERATION_JOBS.pop(old_id, None)
+
+    def progress(step_id: str, message: str) -> None:
+        with JOB_LOCK:
+            target = GENERATION_JOBS.get(job_id)
+            if not target:
+                return
+            target["status"] = "running"
+            target["message"] = message
+            target["updatedAt"] = now_iso()
+            active_index = next((i for i, item in enumerate(target["steps"]) if item["id"] == step_id), None)
+            if active_index is None:
+                return
+            for index, item in enumerate(target["steps"]):
+                if index < active_index and item["status"] == "pending":
+                    item["status"] = "completed"
+                elif index == active_index:
+                    item["status"] = "running"
+
+    def worker() -> None:
+        try:
+            progress(GENERATION_STEPS[kind][0][0], "Iniciando el flujo editorial…")
+            result = (
+                run_editorial_pipeline(request, on_progress=progress)
+                if kind == "editorial"
+                else run_blog_pipeline(request, on_progress=progress)
+            )
+            with JOB_LOCK:
+                target = GENERATION_JOBS.get(job_id)
+                if not target:
+                    return
+                for item in target["steps"]:
+                    item["status"] = "completed"
+                target["status"] = "completed"
+                target["message"] = "Generación completada y guardada para revisión."
+                target["resultId"] = (result.get("post") or result.get("blog") or {}).get("id")
+                target["updatedAt"] = now_iso()
+        except Exception as exc:
+            with JOB_LOCK:
+                target = GENERATION_JOBS.get(job_id)
+                if not target:
+                    return
+                target["status"] = "failed"
+                target["message"] = "La generación no se ha completado."
+                target["error"] = str(exc)
+                target["updatedAt"] = now_iso()
+
+    threading.Thread(target=worker, daemon=True, name=f"nexia-{kind}-{job_id}").start()
+    return generation_job_snapshot(job)
+
+
+def generation_job_snapshot(job: dict) -> dict:
+    return {
+        "ok": True,
+        "job": {
+            "id": job["id"],
+            "kind": job["kind"],
+            "status": job["status"],
+            "message": job["message"],
+            "createdAt": job["createdAt"],
+            "updatedAt": job["updatedAt"],
+            "resultId": job.get("resultId"),
+            "error": job.get("error"),
+            "steps": [dict(item) for item in job.get("steps", [])],
+        },
+    }
+
+
+def get_generation_job(job_id: str) -> dict:
+    if SUPABASE_STORE.enabled:
+        job = SUPABASE_STORE.get_generation_job(job_id)
+        if not job:
+            raise ApiError("Trabajo de generación no encontrado o caducado", 404)
+        return generation_job_snapshot(remote_generation_job(job))
+    with JOB_LOCK:
+        job = GENERATION_JOBS.get(job_id)
+        if not job:
+            raise ApiError("Trabajo de generación no encontrado o caducado", 404)
+        return generation_job_snapshot(job)
+
+
+def generation_job_progress(job: dict) -> dict:
+    return {
+        "message": job.get("message") or "Preparando la generación…",
+        "createdAt": job.get("createdAt") or now_iso(),
+        "updatedAt": job.get("updatedAt") or now_iso(),
+        "resultId": job.get("resultId"),
+        "steps": [dict(item) for item in job.get("steps", [])],
+    }
+
+
+def remote_generation_job(row: dict) -> dict:
+    progress = dict(row.get("progress") or {})
+    result = dict(row.get("result") or {})
+    error = row.get("error") or {}
+    if isinstance(error, str):
+        error = {"message": error}
+    return {
+        "id": row.get("id"),
+        "kind": row.get("kind"),
+        "status": row.get("status"),
+        "message": progress.get("message") or "Preparando la generación…",
+        "createdAt": progress.get("createdAt") or row.get("created_at") or now_iso(),
+        "updatedAt": progress.get("updatedAt") or row.get("updated_at") or now_iso(),
+        "resultId": progress.get("resultId") or result.get("resultId"),
+        "error": error.get("message") if isinstance(error, dict) else None,
+        "steps": [dict(item) for item in progress.get("steps", [])],
+    }
+
+
+def persist_remote_generation_job(job: dict, **extra: object) -> dict:
+    values = {"status": job["status"], "progress": generation_job_progress(job), **extra}
+    return SUPABASE_STORE.update_generation_job(job["id"], values)
+
+
+def process_one_remote_generation_job() -> dict | None:
+    """Claim and process one durable job within the current serverless request."""
+    if not SUPABASE_STORE.enabled:
+        return None
+    claimed = SUPABASE_STORE.claim_generation_job(lease_seconds=780)
+    if not claimed:
+        return None
+    job = remote_generation_job(claimed)
+    request = dict(claimed.get("request") or {})
+    kind = job.get("kind")
+    if kind not in GENERATION_STEPS:
+        job.update({"status": "failed", "message": "Tipo de generación no soportado.", "error": "Tipo de generación no soportado.", "updatedAt": now_iso()})
+        persist_remote_generation_job(job, error={"message": job["error"]}, completed_at=now_iso(), locked_until=None)
+        return generation_job_snapshot(job)
+
+    def progress(step_id: str, message: str) -> None:
+        job["status"] = "running"
+        job["message"] = message
+        job["updatedAt"] = now_iso()
+        active_index = next((i for i, item in enumerate(job["steps"]) if item["id"] == step_id), None)
+        if active_index is not None:
+            for index, item in enumerate(job["steps"]):
+                if index < active_index and item["status"] == "pending":
+                    item["status"] = "completed"
+                elif index == active_index:
+                    item["status"] = "running"
+        persist_remote_generation_job(job)
+
+    try:
+        progress(GENERATION_STEPS[kind][0][0], "Iniciando el flujo editorial…")
+        result = (
+            run_editorial_pipeline(request, on_progress=progress)
+            if kind == "editorial"
+            else run_blog_pipeline(request, on_progress=progress)
+        )
+        for item in job["steps"]:
+            item["status"] = "completed"
+        job["status"] = "completed"
+        job["message"] = "Generación completada y guardada para revisión."
+        job["resultId"] = (result.get("post") or result.get("blog") or {}).get("id")
+        job["updatedAt"] = now_iso()
+        persisted = persist_remote_generation_job(
+            job,
+            result={"resultId": job["resultId"]},
+            error=None,
+            completed_at=now_iso(),
+            locked_until=None,
+        )
+        return generation_job_snapshot(remote_generation_job(persisted))
+    except Exception as exc:
+        job["status"] = "failed"
+        job["message"] = "La generación no se ha completado."
+        job["error"] = str(exc)[:1200]
+        job["updatedAt"] = now_iso()
+        persisted = persist_remote_generation_job(
+            job,
+            error={"message": job["error"]},
+            completed_at=now_iso(),
+            locked_until=None,
+        )
+        return generation_job_snapshot(remote_generation_job(persisted))
+
+
+def refresh_blog_quality_gate(blog: dict) -> dict:
+    """Sanitize the effective article and refresh its deterministic ready gate."""
+    article = blog.setdefault("article", {})
+    effective_article = dict(article)
+    has_override = isinstance(article.get("article_html_override"), str) and article.get("article_html_override").strip()
+    if has_override:
+        effective_article["article_html"] = article["article_html_override"]
+    safe_article, safe_seo, quality_gate = blog_quality_gate(
+        blog.get("request") or {},
+        blog.get("brief") or {},
+        blog.get("retrieval") or {},
+        effective_article,
+        blog.get("seo") or {},
+    )
+    if has_override:
+        article["article_html_override"] = safe_article.get("article_html", "")
+        article["word_count"] = safe_article.get("word_count", 0)
+        article["internal_links_used"] = safe_article.get("internal_links_used", [])
+    else:
+        blog["article"] = safe_article
+    blog["seo"] = safe_seo
+    blog["wordCount"] = safe_article.get("word_count", 0)
+    blog["qualityGate"] = quality_gate
+    return quality_gate
+
+
+def acknowledge_quality_gate(content: dict) -> None:
+    gate = content.get("qualityGate")
+    if not isinstance(gate, dict) or not gate.get("blockers"):
+        return
+    gate["reviewAcknowledgedAt"] = now_iso()
+    gate["reviewAcknowledged"] = True
+    gate["can_mark_ready"] = True
+
+
+def has_unacknowledged_quality_gate(content: dict) -> bool:
+    gate = content.get("qualityGate")
+    if isinstance(gate, dict):
+        return bool(gate.get("blockers")) and not bool(gate.get("reviewAcknowledgedAt"))
+    validation = content.get("validation") or {}
+    return bool(validation.get("human_review_required") or validation.get("review_flags"))
+
+
 def patch_blog(blog_id: str, body: dict) -> dict:
-    allowed_fields = {"status", "metaTitle", "metaDescription", "slug", "title", "articleHtmlOverride"}
+    allowed_fields = {"status", "scheduledFor", "metaTitle", "metaDescription", "slug", "title", "articleHtmlOverride"}
     with transaction() as db:
         blog = next((item for item in db.get("blogs", []) if item.get("id") == blog_id), None)
         if not blog:
@@ -680,10 +1378,50 @@ def patch_blog(blog_id: str, body: dict) -> dict:
             if key in body:
                 if key == "status" and body[key] not in BLOG_STATUSES:
                     continue
+                if key == "scheduledFor":
+                    continue
                 if key == "articleHtmlOverride":
+                    if not isinstance(body[key], str):
+                        raise ApiError("El HTML del artículo debe ser texto.", 400)
                     blog.setdefault("article", {})["article_html_override"] = body[key]
-                else:
+                elif key != "status":
                     blog[key] = body[key]
+        quality_gate = refresh_blog_quality_gate(blog)
+        if as_bool(body.get("reviewAcknowledged"), False):
+            acknowledge_quality_gate(blog)
+        requested_status = body.get("status") if body.get("status") in BLOG_STATUSES else None
+        if requested_status == "published":
+            raise ApiError("La publicación de blogs no está conectada todavía; usa el estado listo.", 409)
+        if "scheduledFor" in body:
+            if has_unacknowledged_quality_gate(blog):
+                raise ApiError(
+                    "El blog requiere revisión humana registrada antes de programarlo.",
+                    409,
+                    "quality_review_required",
+                )
+            raw_date = body.get("scheduledFor")
+            if not isinstance(raw_date, str) or not raw_date.strip():
+                raise ApiError("Indica una fecha válida para planificar el blog", 400)
+            try:
+                planned_at = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ApiError("La fecha de planificación no es válida", 400) from exc
+            if planned_at.tzinfo is None:
+                planned_at = planned_at.replace(tzinfo=timezone.utc)
+            blog["scheduledFor"] = planned_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+            blog["status"] = "scheduled"
+        elif requested_status:
+            if requested_status == "scheduled":
+                raise ApiError("Indica una fecha y una hora para programar el blog", 400)
+            if requested_status in {"ready", "published"} and has_unacknowledged_quality_gate(blog):
+                raise ApiError(
+                    "El blog requiere revisión humana registrada antes de marcarlo como listo.",
+                    409,
+                    "quality_review_required",
+                )
+            blog["status"] = requested_status
+            if requested_status != "scheduled":
+                blog.pop("scheduledFor", None)
         blog["updatedAt"] = now_iso()
         return {"ok": True, "blog": blog, "state": decorate_state(db)}
 
@@ -697,6 +1435,20 @@ def delete_blog(blog_id: str) -> dict:
         return {"ok": True, "state": decorate_state(db)}
 
 
+def estimate_stored_blog_figure_cents(image: dict | None) -> float:
+    """Use persisted data when available, and safely price legacy figures too."""
+    if not isinstance(image, dict):
+        return 0.0
+    try:
+        explicit = image.get("estimatedCostCents")
+        if explicit is not None:
+            return float(explicit)
+        config = image.get("config") or {}
+        return estimate_gpt_image_cost_cents(config.get("size"), config.get("quality"))
+    except (TypeError, ValueError, KeyError):
+        return 0.0
+
+
 def generate_blog_figure_image(blog_id: str, figure_id: str, config: dict) -> dict:
     db = read_db()
     blog = next((item for item in db.get("blogs", []) if item.get("id") == blog_id), None)
@@ -707,26 +1459,57 @@ def generate_blog_figure_image(blog_id: str, figure_id: str, config: dict) -> di
         raise ApiError("Figura no encontrada", 404)
     if not os.getenv("OPENAI_API_KEY"):
         raise ApiError("Falta OPENAI_API_KEY", 400)
+    if uses_ephemeral_image_work_dir() and not SUPABASE_STORE.enabled:
+        raise ApiError(
+            "El almacenamiento persistente de imágenes no está configurado en este entorno.",
+            503,
+        )
 
     blog_settings = normalize_blog_settings(dict(db.get("settings", {}).get("blog") or {}))
     # Map settings.blog.imageQuality (low|standard|high) to the image-service quality values.
     quality_map = {"low": "low", "standard": "medium", "high": "high"}
     default_quality = quality_map.get(blog_settings.get("imageQuality", "standard"), "medium")
 
-    style = config.get("style") or "Ilustracion editorial sobria, concorde al articulo"
     user_notes = config.get("userNotes") or ""
-    size = config.get("size") or "1344x768"
-    quality = config.get("quality") or default_quality
+    size, quality = normalize_image_request(config.get("size") or DEFAULT_SIZE, config.get("quality") or default_quality)
     # Blog images are "sin edicion": no branded frame unless the caller explicitly opts in.
-    with_frame = bool(config.get("withFrame", False))
+    with_frame = as_bool(config.get("withFrame"), False)
+    direction, composition = normalize_visual_choice(
+        config.get("direction") or "territorio_infraestructura",
+        config.get("composition") or "contexto_amplio",
+    )
+    style = f"{VISUAL_DIRECTIONS[direction]['label']} · {COMPOSITIONS[composition]['label']}"
+    image_cost_cents = estimate_gpt_image_cost_cents(size, quality)
+    image_budget_cents = float(blog_settings.get("costTargetCents") or 0)
+    # Regenerating a figure replaces its prior asset, so only other figures
+    # count against the per-article media budget at preflight time.
+    current_estimated_cents = sum(
+        estimate_stored_blog_figure_cents(item.get("image"))
+        for item in blog.get("figures", [])
+        if item.get("figure_id") != figure_id
+    )
+    if image_budget_cents > 0 and current_estimated_cents + image_cost_cents > image_budget_cents:
+        raise ApiError(
+            "La imagen no se ha solicitado: el coste estimado de las figuras "
+            f"({current_estimated_cents + image_cost_cents:.1f} c) supera el tope de "
+            f"{image_budget_cents:.0f} c del artículo. Baja calidad/formato o aumenta el límite.",
+            400,
+        )
 
     # Combine the figure's image_prompt with any user notes; bypass the AI prompt
     # generator since the brief already has a precise image_brief.
     combined_prompt = figure.get("image_prompt", "")
+    combined_prompt += "\n\n" + visual_direction_prompt(direction, composition, with_frame=with_frame)
     if user_notes:
         combined_prompt += f"\n\nUser notes: {user_notes}"
+    if with_frame:
+        combined_prompt += (
+            "\n\nComposition note: keep the lower-right 18% visually calm and free of key subjects, "
+            "signage or high-contrast detail; an exact logo is composited there after generation."
+        )
 
-    filename, size_bytes = ImageService().generate(combined_prompt, size=size, quality=quality)
+    generated_image = ImageService().generate(combined_prompt, size=size, quality=quality)
+    filename = generated_image.filename
     local_path = IMAGES_DIR / filename
 
     if with_frame:
@@ -736,6 +1519,11 @@ def generate_blog_figure_image(blog_id: str, figure_id: str, config: dict) -> di
     else:
         upload_path = local_path
         public_id_suffix = ""
+    local_display_url = f"/images/{upload_path.name}"
+    if SUPABASE_STORE.enabled:
+        SUPABASE_STORE.upload_object("editorial-images", filename, local_path.read_bytes(), "image/png")
+        if upload_path.name != filename:
+            SUPABASE_STORE.upload_object("editorial-images", upload_path.name, upload_path.read_bytes(), "image/png")
 
     cloudinary_data: dict | None = None
     cloudinary = CloudinaryService()
@@ -748,28 +1536,38 @@ def generate_blog_figure_image(blog_id: str, figure_id: str, config: dict) -> di
                 "publicId": upload_result.get("public_id"),
                 "version": version,
                 "rawUrl": upload_result.get("secure_url"),
-                "brandedUrl": cloudinary.build_branded_url(upload_result["public_id"], version=version),
+                "brandedUrl": upload_result.get("secure_url") if with_frame else None,
                 "withFrame": with_frame,
             }
         except Exception as exc:
             print("Cloudinary upload error (blog figure):", exc)
 
     now = now_iso()
-    # Display URL respects withFrame: with marco -> brandedUrl (Cloudinary overlay), sin marco -> rawUrl.
-    # Falls back to the local /images/<filename> path if Cloudinary is disabled.
+    # The local frame already carries the approved logo. Cloudinary is delivery-only,
+    # never a dependency for applying brand artwork.
     if cloudinary_data:
-        display_url = (cloudinary_data.get("brandedUrl") if with_frame else cloudinary_data.get("rawUrl")) or f"/images/{filename}"
+        display_url = (cloudinary_data.get("brandedUrl") if with_frame else cloudinary_data.get("rawUrl")) or local_display_url
     else:
-        display_url = f"/images/{filename}"
+        display_url = local_display_url
     image_obj = {
         "url": f"/images/{filename}",
         "displayUrl": display_url,
-        "brandedUrl": (cloudinary_data or {}).get("brandedUrl"),
+        "brandedUrl": (cloudinary_data or {}).get("brandedUrl") or (local_display_url if with_frame else None),
         "cloudinary": cloudinary_data,
         "prompt": combined_prompt,
-        "config": {"style": style, "size": size, "quality": quality, "userNotes": user_notes, "withFrame": with_frame},
+        "config": {
+            "style": style,
+            "direction": direction,
+            "composition": composition,
+            "size": size,
+            "quality": quality,
+            "userNotes": user_notes,
+            "withFrame": with_frame,
+        },
         "generatedAt": now,
-        "sizeBytes": size_bytes,
+        "sizeBytes": generated_image.size_bytes,
+        "estimatedCostCents": image_cost_cents,
+        "validation": generated_image.validation(),
     }
     with transaction() as fresh:  # re-localiza blog+figura en estado fresco
         fresh_blog = next((b for b in fresh.get("blogs", []) if b.get("id") == blog_id), None)
@@ -781,6 +1579,12 @@ def generate_blog_figure_image(blog_id: str, figure_id: str, config: dict) -> di
         fresh_figure["image"] = image_obj
         fresh_blog["updatedAt"] = now
         result = {"ok": True, "figure": fresh_figure, "blog": fresh_blog, "state": decorate_state(fresh)}
+    if uses_ephemeral_image_work_dir():
+        for staged_path in {local_path, upload_path}:
+            try:
+                staged_path.unlink(missing_ok=True)
+            except OSError as exc:
+                print(f"No se pudo limpiar la imagen temporal {staged_path.name}: {exc}")
     return result
 
 
@@ -823,6 +1627,7 @@ def generate_with_openai(db: dict, theme: dict, post_type: dict, count: int, use
     vector_store_id = db["settings"].get("vectorStoreId", "")
     payload = {
         "model": model,
+        "store": False,
         "input": [
             {"role": "system", "content": build_system_prompt(post_type)},
             {
@@ -1018,12 +1823,12 @@ def sync_files_to_openai() -> dict:
                     item["updatedAt"] = now_iso()
                     errors.append({"id": item.get("id"), "name": item.get("name"), "error": str(exc)})
             continue
-        local_path = item.get("localPath")
-        if not local_path or not Path(local_path).exists():
+        try:
+            buffer = read_source_file_bytes(item)
+        except (OSError, SupabaseStoreError):
             errors.append({"id": item.get("id"), "name": item.get("name"), "error": "Archivo local no encontrado"})
             continue
         try:
-            buffer = Path(local_path).read_bytes()
             vector_store_id = ensure_vector_store(db)
             upload = upload_openai_file(buffer, item["name"], item.get("mimeType") or "application/octet-stream")
             vector_file = attach_file_to_vector_store(
@@ -1049,6 +1854,35 @@ def sync_files_to_openai() -> dict:
     return {"ok": True, "synced": synced, "errors": errors, "state": decorate_state(db)}
 
 
+def read_source_file_bytes(item: dict) -> bytes:
+    """Read a knowledge file in local or Supabase Storage mode."""
+    location = str(item.get("localPath") or "")
+    prefix = "supabase://source-library/"
+    if location.startswith(prefix):
+        if not SUPABASE_STORE.enabled:
+            raise OSError("El almacenamiento gestionado no está configurado")
+        data, _headers = SUPABASE_STORE.download_object("source-library", location[len(prefix):])
+        return data
+    if not location or not Path(location).is_file():
+        raise OSError("Archivo no encontrado")
+    return Path(location).read_bytes()
+
+
+def delete_source_file_if_possible(item: dict) -> None:
+    location = str(item.get("localPath") or "")
+    prefix = "supabase://source-library/"
+    if location.startswith(prefix):
+        if SUPABASE_STORE.enabled:
+            try:
+                SUPABASE_STORE.delete_object("source-library", location[len(prefix):])
+            except SupabaseStoreError:
+                pass
+        return
+    local_path = Path(location)
+    if local_path and is_path_within(local_path, UPLOAD_DIR) and local_path.is_file():
+        local_path.unlink()
+
+
 def register_file(
     db: dict,
     file_name: str,
@@ -1059,18 +1893,25 @@ def register_file(
     local_source_path: str | None = None,
     sync_remote: bool = False,
 ) -> dict:
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     file_id = uid("file")
     safe_name = sanitize_filename(file_name)
-    stored_path = UPLOAD_DIR / f"{file_id}-{safe_name}"
-    stored_path.write_bytes(buffer)
+    stored_name = f"{file_id}-{safe_name}"
+    if SUPABASE_STORE.enabled:
+        object_path = f"sources/{stored_name}"
+        SUPABASE_STORE.upload_object("source-library", object_path, buffer, mime_type)
+        stored_path_value = f"supabase://source-library/{object_path}"
+    else:
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        stored_path = UPLOAD_DIR / stored_name
+        stored_path.write_bytes(buffer)
+        stored_path_value = str(stored_path)
     now = now_iso()
     item = {
         "id": file_id,
         "name": safe_name,
         "category": category,
         "source": source,
-        "localPath": str(stored_path),
+        "localPath": stored_path_value,
         "localSourcePath": local_source_path,
         "mimeType": mime_type,
         "size": len(buffer),
@@ -1200,10 +2041,12 @@ def run_scheduler(force: bool, source: str) -> dict:
             }
             result = pipeline.run(request, db)
             post = result["post"]
-            if db["settings"].get("publishMode") == "ready":
+            if db["settings"].get("publishMode") == "ready" and not has_unacknowledged_quality_gate(post):
                 post["status"] = "ready"
-            elif db["settings"].get("publishMode") == "auto":
+            elif db["settings"].get("publishMode") == "auto" and not has_unacknowledged_quality_gate(post):
                 publish_post(db, post)
+            elif db["settings"].get("publishMode") in {"ready", "auto"}:
+                post["schedulerReviewReason"] = "La puerta de calidad mantuvo el post en borrador."
             generated.append(post)
         except Exception as exc:
             errors.append({"themeId": theme["id"], "error": str(exc)})
@@ -1237,9 +2080,32 @@ def scheduler_loop() -> None:
             print("Scheduler error:", exc)
 
 
-def publish_post(db: dict, post: dict) -> None:
+def run_daily_maintenance() -> dict:
+    """Run the work that Vercel Hobby can guarantee: one daily invocation.
+
+    Manual jobs are attempted immediately by their request. This daily route is
+    the recovery path for an invocation interrupted before completion and also
+    replaces the local scheduler thread once the app runs on Vercel.
+    """
+    scheduler = run_scheduler(force=False, source="vercel-daily")
+    recovered_job = None
+    if scheduler.get("skipped"):
+        recovered_job = process_one_remote_generation_job()
+    return {"scheduler": scheduler, "recoveredJob": recovered_job}
+
+
+def publish_post(db: dict, post: dict, *, require_webhook: bool = False) -> None:
+    refresh_post_quality_gate(post)
+    if has_unacknowledged_quality_gate(post):
+        raise ApiError(
+            "El post requiere revisión humana registrada antes de publicarse.",
+            409,
+            "quality_review_required",
+        )
     webhook = os.getenv("SOCIAL_WEBHOOK_URL")
     if not webhook:
+        if require_webhook:
+            raise ApiError("La publicación automática no está conectada. El post sigue listo para revisión.", 409)
         post["status"] = "ready"
         post["publishResult"] = {"ok": False, "message": "SOCIAL_WEBHOOK_URL no configurado. Post listo para revision."}
         post["updatedAt"] = now_iso()
@@ -1336,9 +2202,41 @@ def apply_post_edits(post: dict, body: dict) -> None:
     el campo plano que lee la UI, generation.copy y validation."""
     gen_copy = post.setdefault("generation", {}).setdefault("copy", {})
     validation = post.get("validation") if isinstance(post.get("validation"), dict) else None
+    refresh_post_quality_gate(post)
+
+    if as_bool(body.get("reviewAcknowledged"), False):
+        acknowledge_quality_gate(post)
 
     if "status" in body:
-        post["status"] = normalize_status(body.get("status") or post.get("status"))
+        requested_status = normalize_status(body.get("status") or post.get("status"))
+        if requested_status in {"ready", "scheduled"} and has_unacknowledged_quality_gate(post):
+            raise ApiError(
+                "El post requiere revisión humana registrada antes de prepararlo para calendario.",
+                409,
+                "quality_review_required",
+            )
+        post["status"] = requested_status
+        if post["status"] != "scheduled":
+            post.pop("scheduledFor", None)
+
+    if "scheduledFor" in body:
+        if has_unacknowledged_quality_gate(post):
+            raise ApiError(
+                "El post requiere revisión humana registrada antes de programarlo.",
+                409,
+                "quality_review_required",
+            )
+        raw_date = body.get("scheduledFor")
+        if not isinstance(raw_date, str) or not raw_date.strip():
+            raise ApiError("Indica una fecha válida para planificar el post", 400)
+        try:
+            planned_at = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ApiError("La fecha de planificación no es válida", 400) from exc
+        if planned_at.tzinfo is None:
+            planned_at = planned_at.replace(tzinfo=timezone.utc)
+        post["scheduledFor"] = planned_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        post["status"] = "scheduled"
 
     if isinstance(body.get("copy"), str):
         text = body["copy"].strip()
@@ -1369,11 +2267,62 @@ def apply_post_edits(post: dict, body: dict) -> None:
 
     if any(key in body for key in ("copy", "cta", "hashtags", "title")):
         post["edited"] = True
+        gate = post.get("qualityGate")
+        if isinstance(gate, dict) and gate.get("blockers"):
+            gate.pop("reviewAcknowledgedAt", None)
+            gate.pop("reviewAcknowledged", None)
+            gate["can_mark_ready"] = False
+    if post.get("status") in {"ready", "scheduled"} and has_unacknowledged_quality_gate(post):
+        raise ApiError(
+            "Los cambios editoriales requieren una nueva revisión humana antes de preparar el post.",
+            409,
+            "quality_review_required",
+        )
 
 
 def sanitize_post(post: dict) -> dict:
-    safe = dict(post)
+    safe = json.loads(json.dumps(post, ensure_ascii=False))
+    refresh_post_quality_gate(safe)
+    if isinstance(safe.get("image"), dict):
+        _ensure_image_variant_id(safe["image"])
+    variants = post_image_variants(safe)
+    if variants:
+        safe["imageVariants"] = variants
     safe.pop("imageLocalPath", None)
+    return safe
+
+
+def refresh_post_quality_gate(post: dict) -> dict:
+    validation = post.get("validation")
+    if not isinstance(validation, dict):
+        validation = {}
+        post["validation"] = validation
+    quality_gate = post_quality_gate(
+        post.get("request") or {},
+        post.get("brief") or {},
+        post.get("retrieval") or {},
+        validation,
+    )
+    existing = post.get("qualityGate")
+    if isinstance(existing, dict) and existing.get("reviewAcknowledgedAt"):
+        quality_gate["reviewAcknowledgedAt"] = existing["reviewAcknowledgedAt"]
+        quality_gate["reviewAcknowledged"] = True
+        quality_gate["can_mark_ready"] = True
+    post["qualityGate"] = quality_gate
+    return quality_gate
+
+
+def sanitize_blog_for_client(blog: dict) -> dict:
+    """Return a safe, quality-annotated view without mutating legacy drafts."""
+    safe = json.loads(json.dumps(blog, ensure_ascii=False))
+    try:
+        refresh_blog_quality_gate(safe)
+    except Exception:
+        article = safe.get("article")
+        if isinstance(article, dict):
+            article["article_html"] = sanitize_article_html(article.get("article_html"))
+            if isinstance(article.get("article_html_override"), str):
+                article["article_html_override"] = sanitize_article_html(article["article_html_override"])
     return safe
 
 
@@ -1414,6 +2363,10 @@ def normalize_blog_settings(blog: dict) -> dict:
         blog["costTargetCents"] = 30
     if blog.get("imageQuality") not in {"low", "standard", "high"}:
         blog["imageQuality"] = "standard"
+    if blog.get("defaultLength") not in BLOG_LENGTH_TARGETS:
+        blog["defaultLength"] = BLOG_SETTINGS_DEFAULTS["defaultLength"]
+    if blog.get("defaultFramework") not in BLOG_FRAMEWORKS:
+        blog["defaultFramework"] = BLOG_SETTINGS_DEFAULTS["defaultFramework"]
     return blog
 
 
@@ -1504,14 +2457,16 @@ def decorate_state(db: dict) -> dict:
         "posts": len(posts),
         "draft": sum(1 for post in posts if post.get("status") == "draft"),
         "ready": sum(1 for post in posts if post.get("status") == "ready"),
+        "scheduled": sum(1 for post in posts if post.get("status") == "scheduled"),
         "published": sum(1 for post in posts if post.get("status") == "published"),
         "files": len(files),
         "ideas": sum(len(theme.get("usedIdeas", [])) for theme in db.get("themes", [])),
     }
-    blogs = db.get("blogs", [])
+    blogs = [sanitize_blog_for_client(item) for item in db.get("blogs", [])]
     counts["blogs"] = len(blogs)
     counts["blogsDraft"] = sum(1 for b in blogs if b.get("status") == "draft")
     counts["blogsReady"] = sum(1 for b in blogs if b.get("status") == "ready")
+    counts["blogsScheduled"] = sum(1 for b in blogs if b.get("status") == "scheduled")
     counts["blogsPublished"] = sum(1 for b in blogs if b.get("status") == "published")
     settings = dict(db.get("settings", {}))
     settings["blog"] = normalize_blog_settings(dict(settings.get("blog") or {}))
@@ -1545,6 +2500,7 @@ def editorial_options() -> dict:
             "objectives": OBJECTIVES,
             "ctaTypes": CTA_TYPES,
             "riskFlags": RISK_FLAGS,
+            "visual": public_visual_options(),
             "promotionalLevels": {
                 "bajo": "Bajo",
                 "medio": "Medio",
@@ -1554,11 +2510,30 @@ def editorial_options() -> dict:
 
 
 def read_db() -> dict:
+    if SUPABASE_STORE.enabled:
+        remote = SUPABASE_STORE.read_state()
+        # Pipelines mutate snapshots freely. Return an isolated object and retain
+        # the version only locally for the compare-and-swap write.
+        db = json.loads(json.dumps(remote.state, ensure_ascii=False))
+        db[STATE_VERSION_KEY] = remote.version
+        return db
     with DB_LOCK:
         return json.loads(DB_PATH.read_text(encoding="utf-8"))
 
 
 def write_db(db: dict) -> None:
+    if SUPABASE_STORE.enabled:
+        version = int(db.pop(STATE_VERSION_KEY, 0) or 0)
+        if not version:
+            raise SupabaseStoreError("No se puede guardar estado remoto sin versión de control.")
+        try:
+            new_version = SUPABASE_STORE.replace_state(db, version)
+        except SupabaseStoreError as exc:
+            if "40001" in str(exc) or "version conflict" in str(exc):
+                raise ApiError("El contenido cambió en otra sesión. Recarga y repite la operación.", 409, "state_conflict") from exc
+            raise
+        db[STATE_VERSION_KEY] = new_version
+        return
     with DB_LOCK:
         temp_path = DB_PATH.with_suffix(".json.tmp")
         temp_path.write_text(json.dumps(db, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -1574,12 +2549,20 @@ def transaction():
     largos (generacion con OpenAI) el patron es: hacer el trabajo lento sobre un
     snapshot read_db() y persistir SOLO el delta dentro de un transaction() corto.
     """
+    if SUPABASE_STORE.enabled:
+        db = read_db()
+        yield db
+        write_db(db)
+        return
     with DB_LOCK:
         db = json.loads(DB_PATH.read_text(encoding="utf-8"))
         yield db
         temp_path = DB_PATH.with_suffix(".json.tmp")
         temp_path.write_text(json.dumps(db, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         temp_path.replace(DB_PATH)
+
+
+prompt_service.configure_db_reader(read_db)
 
 
 def record_usage(db: dict, usage: dict | None) -> None:
@@ -1607,7 +2590,7 @@ def normalize_theme(body: dict, previous: dict | None = None) -> dict:
         "audience": str(body.get("audience") or previous.get("audience") or "Audiencia B2B").strip(),
         "description": str(body.get("description") or previous.get("description") or "").strip(),
         "pillars": split_list(body.get("pillars", previous.get("pillars", []))),
-        "active": bool(body["active"]) if "active" in body else previous.get("active", True),
+        "active": as_bool(body["active"], True) if "active" in body else previous.get("active", True),
         "usedIdeas": previous.get("usedIdeas", []),
     }
 
@@ -1709,6 +2692,20 @@ def clamp(value: int, minimum: int, maximum: int) -> int:
     return min(maximum, max(minimum, value))
 
 
+def as_bool(value, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "si", "sí", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off", ""}:
+            return False
+    if value is None:
+        return default
+    return bool(value)
+
+
 def uid(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
@@ -1718,6 +2715,11 @@ def now_iso() -> str:
 
 
 def ensure_files() -> None:
+    if SUPABASE_STORE.enabled:
+        # Production state is seeded by the checked migration importer. Do not
+        # create an empty cloud state implicitly, which could mask a bad deploy.
+        read_db()
+        return
     DATA_DIR.mkdir(exist_ok=True)
     UPLOAD_DIR.mkdir(exist_ok=True)
     IMAGES_DIR.mkdir(exist_ok=True)

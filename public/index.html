@@ -4,16 +4,26 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Nexia GP Social AI</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css?v=20260824-direct-access-1" />
   </head>
   <body>
+    <section class="auth-gate" id="authGate" hidden aria-live="polite"></section>
     <div class="app-shell">
-      <aside class="sidebar">
-        <a class="brand" href="#generator" data-nav="generator" aria-label="Nexia GP Social AI">
-          <img src="/logo-web.png" alt="Nexia Growth Partner" />
-        </a>
+      <aside class="sidebar" id="appSidebar">
+        <div class="sidebar-head">
+          <a class="brand" href="#generator" data-nav="generator" aria-label="Nexia GP Social AI">
+            <img src="/logo-web.png" alt="Nexia Growth Partner" />
+          </a>
+          <button class="mobile-nav-toggle" type="button" data-action="mobile-nav-toggle" aria-controls="primaryNav" aria-expanded="false">
+            <span data-icon="menu"></span>
+            <span>Menú</span>
+          </button>
+        </div>
 
-        <nav class="nav" aria-label="Principal">
+        <nav class="nav" id="primaryNav" aria-label="Principal">
           <button class="nav-item is-active" type="button" data-nav="generator">
             <span data-icon="spark"></span>
             <span>Generador</span>
@@ -33,6 +43,10 @@
           <button class="nav-item" type="button" data-nav="strategy">
             <span data-icon="target"></span>
             <span>Temáticas</span>
+          </button>
+          <button class="nav-item" type="button" data-nav="calendar">
+            <span data-icon="calendar"></span>
+            <span>Calendario</span>
           </button>
           <button class="nav-item" type="button" data-nav="automation">
             <span data-icon="clock"></span>
@@ -117,6 +131,16 @@
           <div id="strategyView"></div>
         </section>
 
+        <section class="view" data-view="calendar" aria-labelledby="calendar-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Planificación</p>
+              <h2 id="calendar-title">Calendario editorial</h2>
+            </div>
+          </div>
+          <div id="calendarView"></div>
+        </section>
+
         <section class="view" data-view="automation" aria-labelledby="automation-title">
           <div class="section-heading">
             <div>
@@ -139,7 +163,18 @@
       </main>
     </div>
 
+    <dialog class="media-preview" id="imagePreviewDialog" aria-labelledby="imagePreviewTitle">
+      <div class="media-preview-head">
+        <div>
+          <p class="eyebrow">Vista ampliada</p>
+          <h2 id="imagePreviewTitle">Imagen del post</h2>
+        </div>
+        <button class="icon-button" type="button" data-action="image-preview-close" aria-label="Cerrar imagen">×</button>
+      </div>
+      <div class="media-preview-body" id="imagePreviewBody"></div>
+    </dialog>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="/app.js"></script>
+    <script src="/app.js?v=20260822-calendar-month-1"></script>
   </body>
 </html>

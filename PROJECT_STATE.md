@@ -1,27 +1,128 @@
 # Nexia GP Social AI — Estado de continuidad
 
-**Fecha de referencia: 2026-06-30**
-**Ultima sesion documentada: Sesion 4 (30/06/2026) — Auditoria + Fases 0, 1 y 2**
+**Fecha de referencia: 2026-08-22**
+**Última sesión documentada: Sesión 7 (22/08/2026) — Cierre editorial, visual y calendario**
 
 Este archivo es la fuente de verdad del proyecto. Leerlo SIEMPRE antes de retomar trabajo.
 
 ---
 
+## Actualización de auditoría — 22/08/2026
+
+- **RAG verificable:** el pipeline consulta directamente el endpoint de búsqueda del Vector Store y
+  reconcilia cada fragmento con el archivo real de `db.files`. Las fuentes no catalogadas no pueden
+  sostener una publicación; los fragmentos del mismo archivo se agrupan.
+- **Puerta de calidad:** `review_flags`, sensibilidad factual y ausencia de evidencia bloquean
+  `ready`, `scheduled` y `published` hasta registrar una revisión humana explícita. El scheduler
+  mantiene el borrador si existe un bloqueo.
+- **Blogs seguros:** HTML/JSON-LD saneados, enlaces falsos de lead magnet neutralizados y control de
+  H1, longitud, figuras, fuentes y SEO antes de pasar a listo.
+- **Seguridad local:** rutas estáticas seguras, límite JSON 1 MB, upload permitido y acotado,
+  errores internos no expuestos al cliente y JPEG con MIME correcto.
+- **Prueba real final:** `post_22b94f25fe79` recuperó
+  `D01_AP-Tenerife-Memoria-Anual-2024.pdf` como fuente oficial y usó 12.901 tokens en 4 llamadas
+  (−43 % frente a la primera prueba de 22.767 tokens / 5 llamadas). Sigue en borrador por diseño.
+- **Imagen real:** `post_22b94f25fe79` conserva dos conceptos: el PNG 1536×1024 histórico y una
+  nueva escena 4:5 (1088×1360) de criterio experto en operación portuaria. Ambos están validados,
+  el 4:5 es el activo seleccionado y sigue pendiente de revisión editorial humana.
+- **Estado actual auditado:** 10 posts (9 en `draft`, 1 en `scheduled`), 2 blogs en `draft`,
+  46 archivos y 0 publicaciones. `usageStats` acumulado: 5 generaciones, 24 llamadas y
+  92.989 tokens. Se preservan los borradores y las variantes como evidencia editorial; no borrar
+  sin decisión explícita.
+
+Leer primero el cierre vigente antes de continuar:
+`Documentación Nexia/2026-08-cierre-pre-entrega.md`.
+
+## Actualización visual editorial — 22/08/2026
+
+- **Dirección de arte controlable:** cada imagen de post ahora se genera con una intención visual
+  (operación, criterio experto, territorio, producto o relación de canal) y un encuadre explícito,
+  en vez de depender de un selector genérico de estilos.
+- **Formatos listos para contenido:** se incorpora 4:5 para LinkedIn y 16:9 para cabeceras, además
+  de los formatos editorial, cuadrado y vertical ya validados. La calidad separa exploración rápida,
+  trabajo recomendado y final.
+- **Mejor aspecto por contrato:** los prompts de posts y blog bloquean mapas, diagramas, planos,
+  documentos ficticios, texto y composiciones de collage. El modelo debe resolver la idea como una
+  escena fotográfica única, coherente y creíble.
+- **Comparación sin pérdida:** cada post conserva hasta cinco conceptos visuales. El editor puede
+  seleccionar el activo y registrar su revisión humana sin destruir las alternativas.
+- **Documentación operativa:** ver `Documentación Nexia/2026-08-estandar-visual-editorial.md`.
+- **UX de revisión:** la bandeja de posts muestra una miniatura o estado visual incluso cerrada.
+  Al abrir una pieza aparece una mesa de revisión: copy final a la izquierda y pieza visual a la
+  derecha. La imagen se muestra completa en una miniatura contenida y se amplía en un diálogo sin
+  recorte; los controles quedan en un desplegable propio, no en una columna lateral interminable.
+- **Dirección visual guiada:** gestionar una imagen abre decisiones explicadas en lenguaje editorial
+  (qué comunica, cómo se encuadra y formato/acabado), conservando variantes y revisión humana. Las
+  miniaturas de alternativas también usan `contain`, no `cover`.
+- **Revisión de blogs:** el formulario de creación queda recogido; los artículos existentes se
+  seleccionan desde tarjetas con filtros y búsqueda alineados. El detalle abierto conserva vista
+  previa, SEO, brief e imágenes, y la transición se expresa como “Preparar para calendario”.
+- **Control de blog legible:** la vista previa del artículo es permanente y los paneles de control
+  quedan debajo. SEO muestra una ficha de resultado de buscador, URLs y datos estructurados
+  resumidos; el JSON-LD bruto queda bajo demanda. El enfoque convierte el brief en tesis,
+  audiencia, cobertura de búsqueda y enlaces internos; las imágenes son una galería ampliable con
+  sus controles de generación recogidos.
+- **Fallo corregido de paneles:** la clase `hidden` ya se aplica realmente. Al cambiar entre SEO,
+  enfoque e imágenes se muestra un único panel y se desplaza al control correspondiente, en vez de
+  apilar toda la información debajo del iframe.
+- **Caché de entrega:** `index.html` versiona CSS y JavaScript para impedir que un navegador mezcle
+  una interfaz nueva con estilos antiguos durante una actualización local.
+- **Entrega manual de PNG:** el activo seleccionado de cada post, cada concepto conservado y cada
+  figura de blog ofrecen `Descargar PNG`. La acción obtiene el binario final directamente; no usa
+  la miniatura visible, ni canvas, ni recompresión, por lo que preserva la calidad original.
+- **Calendario editorial con selección:** posts y blogs se eligen en bandejas separadas antes de
+  asignar su fecha. Los posts incluyen miniatura y extracto para identificar la pieza; los blogs
+  mantienen una lista editorial compacta. Ambos guardan día y hora como `scheduledFor`, sin
+  confundir planificación interna con publicación automática.
+- **Agenda de ocupación:** la agenda editorial abre por defecto una vista mensual. Marca los días
+  con piezas programadas o publicadas, deja explícitos los huecos libres y muestra el detalle de
+  cada fecha al hacer clic; se conserva una vista de lista para recorrer la planificación lineal.
+- **Validación visual real:** comprobada en Google Chrome a `1920 × 855 px` y `390 × 844 px`:
+  sin desbordamiento horizontal, miniatura y modal de imagen íntegros, tarjetas de blog en una
+  columna en móvil y buscador de `38 px` de alto.
+- **Calendario comprobado en Chrome:** la vista mensual se abre por defecto, permite navegar entre
+  meses, identifica días ocupados y libres y muestra el detalle al pulsar una fecha; la vista de
+  lista sigue disponible. Los candidatos de blog mantienen el CTA dentro de su tarjeta.
+
+---
+
 ## PUNTO ACTUAL DEL PROYECTO
 
-El sistema esta operativo y completo en sus pilares principales, y en la sesion 4 se hizo una
-auditoria completa (PM + experto en redes) seguida de tres fases de mejora ya implementadas,
-verificadas y commiteadas:
+### Actualización de entrega — 16/08/2026
+
+- **Interfaz y operación editorial:** navegación móvil compacta, banda de métricas equilibrada,
+  bandeja de posts cerrada por defecto (detalle bajo demanda e imagen ampliable solo al clic),
+  checklist de aprobación, filtros de biblioteca, calendario de planificación manual y bloqueo
+  explícito de publicación automática cuando no hay webhook.
+- **Generaciones asíncronas visibles:** los flujos editorial y blog se ejecutan como trabajos
+  locales en segundo plano y muestran sus pasos reales mediante sondeo. El contenido final sigue
+  guardándose en las transacciones ya existentes.
+- **Imagen fiable y marca determinista:** se usan presets de tamaño/calidad validados en producto;
+  el PNG se valida antes de persistir y el logo aprobado se compone localmente
+  antes de la entrega. Cloudinary queda como distribución, nunca como requisito para aplicar marca.
+- **Coste de blog:** `costTargetCents` ya bloquea, antes de solicitarla, una figura cuyo coste
+  estimado de salida de imagen haga superar el tope del artículo. No cubre texto ni entradas de
+  edición, que son variables.
+- **Verificación:** compilación Python y JavaScript, seis pruebas offline de imagen y ciclo de
+  trabajo asíncrono simulados correctamente; interfaz comprobada en escritorio y móvil sin
+  consumir OpenAI.
+
+El sistema está operativo y completo en sus pilares principales. La sesión 4 aportó la auditoría y
+las fases de calidad/integridad ya commiteadas; la sesión 5 añade entrega UX, control operativo e
+imagen fiable en cambios locales aún sin commit.
 
 1. **Generacion de posts** para LinkedIn/X/Facebook — funcional, con imagenes, prompts editables.
 2. **Generacion de articulos de blog** — funcional, con imagenes ligeras, preview fiel al sitio web.
 3. **Knowledge Base externa** — **SUBIDA**: 34 PDFs sectoriales de Canarias ya en el Vector Store.
 
-**Lo que falta ahora mismo (unico gran pendiente de producto):**
-- **Publicacion / programacion real** a redes (LinkedIn API o Buffer/Metricool). Hoy solo hay un
-  stub por webhook (`SOCIAL_WEBHOOK_URL`). Requiere decision de plataforma + credenciales OAuth.
-- **Calendario editorial** visual (asociado a la publicacion).
-- Acciones manuales de seguridad pendientes (ver seccion Seguridad).
+**Límite consciente de esta entrega:**
+- La aplicación crea, revisa y planifica contenido; no pretende incluir analítica/KPIs ni
+  publicación real a redes. El webhook actual es solo un punto de extensión, no una integración
+  social terminada.
+- Siguen pendientes las acciones manuales de seguridad (ver sección Seguridad).
+
+Para el handoff exhaustivo de la sesión 5, leer
+`Documentación Nexia/2026-08-entrega-y-continuidad.md`.
 
 ---
 
@@ -75,6 +176,7 @@ Otras notas de seguridad (deuda conocida, no bloqueante en uso local mono-usuari
   - `#blogs` — creacion y revision de articulos de blog **con filtros y busqueda** (nuevo).
   - `#library` — biblioteca de archivos y Vector Store.
   - `#strategy` (Tematicas) — informativo de tipos/prompts.
+  - `#calendar` — planificación interna de posts; no publica por sí solo.
   - `#automation` — scheduler por cadencia.
   - `#settings` — ajustes (General / Posts / Blog / Prompts).
 - La clave API esta en `.env`; no imprimirla ni moverla a archivos versionables.
@@ -83,13 +185,16 @@ Otras notas de seguridad (deuda conocida, no bloqueante en uso local mono-usuari
 
 ## Estado de datos (db.json)
 
-- 5 posts (4 draft, 1 ready) — todos con imagenes generadas. Sirven de muestra; NO borrar.
+- 10 posts (9 `draft`, 1 `scheduled`, 0 `ready`, 0 `published`) — no borrar sin decisión editorial
+  explícita. `post_22b94f25fe79` conserva dos variantes validadas y usa la nueva imagen 4:5 como
+  activo seleccionado, pendiente de revisión humana.
 - 2 blogs (ambos draft) — ambos con imagenes generadas.
 - **46 archivos** sincronizados con el Vector Store: 12 (web + copywriting de Nexia) + **34 de la
   KB externa sectorial** (subidos en sesion 4).
 - 0 overrides de prompt (los `.txt` estan activos; `prompt_overrides` y `prompt_versions` vacios).
 - **`usageStats`** (nuevo): acumulado de tokens por generacion (`generations`, `calls`,
-  `input_tokens`, `output_tokens`, `total_tokens`).
+  `input_tokens`, `output_tokens`, `total_tokens`). A fecha de referencia: 5 generaciones,
+  24 llamadas, 79.741 tokens de entrada, 13.248 de salida y 92.989 totales.
 - Almacenamiento: JSON flat-file local (`data/db.json`). NO Supabase.
 - **Escrituras atomicas** (nuevo): todo read-modify-write pasa por `transaction()` con un unico
   lock (ver seccion Integridad). `write_db` sigue siendo atomico a nivel de fichero (`.tmp`+replace).
@@ -250,11 +355,15 @@ Dependencias: **`requirements.txt`** (unica de terceros: Pillow). El resto es li
 ## Imagenes
 
 ### Posts
-- Modelo `gpt-image-2` | 1344x768 (default) | calidad medium.
-- Frame: blur strip + linea chocolate (Pillow) + logo NGP via Cloudinary (ON por defecto).
+- Modelo `gpt-image-2` | 1536x1024 (default) | calidad medium.
+- Formatos admitidos: `1536x1024`, `1024x1024`, `1024x1536`; PNG validado y persistido
+  atómicamente tras hasta dos intentos.
+- Frame: blur strip + línea chocolate + logo NGP con Pillow local (ON por defecto). Cloudinary
+  solo distribuye ese activo ya compuesto.
 
 ### Blog
-- 1024x576 | calidad standard. Frame/overlay OFF por defecto (rawUrl). Figuras distribuidas en el HTML.
+- 1536x1024 (default) | calidad standard. Frame/logo OFF por defecto; se puede activar como
+  composición local opcional. Figuras distribuidas en el HTML y limitadas por presupuesto de imagen.
 
 ---
 
@@ -265,6 +374,7 @@ GET   /api/health                                — estado de clave, modelo, VS
 GET   /api/state                                 — estado completo (incluye usageStats)
 
 POST  /api/editorial/generate                    — genera post completo [CONSUME OPENAI]
+POST  /api/jobs/editorial                        — inicia post en segundo plano [CONSUME OPENAI]
 POST  /api/editorial/posts/:id/regenerate        — regenera post [CONSUME OPENAI]
 POST  /api/editorial/posts/:id/adapt             — regenera adaptaciones X/FB [CONSUME OPENAI]
 POST  /api/posts/:id/generate-image              — genera imagen de post [CONSUME OPENAI]
@@ -273,6 +383,8 @@ DELETE/api/posts/:id                             — elimina post
 POST  /api/posts/:id/publish                     — publica (webhook stub si SOCIAL_WEBHOOK_URL)
 
 POST  /api/blogs/generate                        — genera blog completo [CONSUME OPENAI]
+POST  /api/jobs/blog                             — inicia blog en segundo plano [CONSUME OPENAI]
+GET   /api/jobs/:id                              — estado de un trabajo local
 POST  /api/blogs/:id/figures/:fid/generate-image — imagen de figura [CONSUME OPENAI]
 PATCH /api/blogs/:id                             — actualiza estado/campos del blog
 DELETE/api/blogs/:id                             — elimina blog
@@ -293,7 +405,14 @@ POST  /api/scheduler/run
 python server.py
 ```
 
-Abrir `http://localhost:8787`. Si el puerto esta ocupado:
+Abrir `http://localhost:8787`. Para levantar una instancia secundaria sin tocar la principal:
+
+```powershell
+$env:PORT = '8789'
+python server.py
+```
+
+Si el puerto esta ocupado:
 ```powershell
 netstat -ano | findstr :8787
 ```
@@ -313,6 +432,9 @@ python -m py_compile server.py (ver lista completa en sesiones anteriores)
 
 # Sintaxis del frontend
 node --check public/app.js
+
+# Suite offline de contratos (17 pruebas actuales)
+python -m unittest -v test_calendar_scheduling test_content_quality test_image_service_offline test_visual_direction
 ```
 
 El pipeline completo se puede probar en **modo fallback** (sin OPENAI_API_KEY) para verificar las
@@ -338,20 +460,24 @@ guardas (anti-repeticion, X<=280, hashtags, completitud) sin coste.
 ### 1. Acciones manuales de seguridad (usuario)
 Rotar claves, borrar los `.txt` de secretos, sacar de OneDrive (ver seccion Seguridad).
 
-### 2. Publicacion / programacion real (mayor salto de producto)
-- Decidir plataforma: **LinkedIn API directa** vs **Buffer/Metricool** (agregadores).
-- Implica OAuth + credenciales. Es lo unico que cierra la cadena de valor (hoy la app crea pero no
-  publica). Asociar un **calendario editorial** visual.
+### 2. Cierre editorial y preparación de demostración
+- Revisar los posts y blogs existentes contra copy, fuentes, SEO e imagen antes de etiquetarlos como
+  listos; una fecha de calendario no equivale a publicación.
+- Hacer una demostración local completa: generar borrador, revisar copy, comparar/descargar PNG,
+  inspeccionar blog y reservar una fecha. No consumir OpenAI sin aprobación explícita.
 
 ### 3. Descargar el OTLE y completar la KB
 Descargar el OTLE Informe Anual 2024 a `data/uploads/kb-externa/D-logistica/` y
 `python scripts/upload_kb.py` (subira solo ese).
 
-### 4. Pulido / deuda tecnica (opcional)
-- SSE/progreso real durante la generacion (hoy spinner; los pasos no avanzan en vivo).
+### 4. Fuera del alcance inmediato / deuda técnica
+- La publicación real requerirá decidir LinkedIn API directa o Buffer/Metricool, OAuth, cola
+  persistente, reintentos y comprobación humana final. No activarla como parte del cierre actual.
+- Sustituir el sondeo actual por SSE/WebSocket si se migra a una arquitectura multiusuario.
 - Migrar `db.json` a SQLite si crece mucho (la transaccion atomica ya mitiga lo urgente).
-- Tests automatizados (no hay suite).
-- Aplicar `costTargetCents` como limite real usando `usageStats`.
+- Mantener y ampliar la suite offline de 17 contratos; añadir E2E HTTP/Chrome cuando se estabilice
+  el siguiente bloque funcional.
+- Extender los presupuestos a texto, edición de imagen y vídeo cuando se habilite esa línea.
 - Historial de versiones del contenido de posts (como ya existe para prompts).
 
 ---

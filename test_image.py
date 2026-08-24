@@ -1,25 +1,21 @@
-"""
-Prueba rápida de gpt-image-2.
-Genera una imagen a partir de un prompt B2B y la guarda en data/test_images/.
-Uso: python test_image.py
+"""Prueba manual de imagen que reutiliza el flujo seguro de producción.
+
+Genera una imagen solo cuando se ejecuta explícitamente y la copia a
+``data/test_images/``. Uso: ``python test_image.py``.
 """
 from __future__ import annotations
 
-import base64
-import json
 import os
+import shutil
 import sys
-import urllib.error
-import urllib.request
 from pathlib import Path
 from datetime import datetime
+
+from src.ai.services.image_service import DEFAULT_SIZE, ImageService
 
 ROOT = Path(__file__).resolve().parent
 OUT_DIR = ROOT / "data" / "test_images"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
-
-OPENAI_BASE_URL = "https://api.openai.com/v1"
-MODEL = "gpt-image-2"
 
 PROMPTS = [
     {
@@ -67,49 +63,12 @@ def load_env() -> None:
         os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
 
 
-def generate_image(prompt: str, size: str = "1344x768", quality: str = "medium") -> bytes:
+def generate_image(prompt: str, size: str = DEFAULT_SIZE, quality: str = "medium") -> Path:
     key = os.environ.get("OPENAI_API_KEY", "")
     if not key:
         raise RuntimeError("Falta OPENAI_API_KEY en .env")
-
-    payload = json.dumps({
-        "model": MODEL,
-        "prompt": prompt,
-        "n": 1,
-        "size": size,
-        "quality": quality,
-        "output_format": "png",
-    }, ensure_ascii=False).encode("utf-8")
-
-    req = urllib.request.Request(
-        f"{OPENAI_BASE_URL}/images/generations",
-        data=payload,
-        headers={
-            "authorization": f"Bearer {key}",
-            "content-type": "application/json",
-        },
-        method="POST",
-    )
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    try:
-        with opener.open(req, timeout=120) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        raw = exc.read().decode("utf-8", errors="replace")
-        try:
-            msg = json.loads(raw).get("error", {}).get("message") or raw
-        except Exception:
-            msg = raw
-        raise RuntimeError(f"OpenAI error {exc.code}: {msg}") from exc
-
-    item = data["data"][0]
-    if "b64_json" in item:
-        return base64.b64decode(item["b64_json"])
-    if "url" in item:
-        print(f"  (descargando desde URL...)")
-        with urllib.request.urlopen(item["url"], timeout=60) as r:
-            return r.read()
-    raise RuntimeError(f"Respuesta inesperada de la API: {list(item.keys())}")
+    result = ImageService().generate(prompt, size=size, quality=quality)
+    return ROOT / "data" / "images" / result.filename
 
 
 def main() -> None:
@@ -122,17 +81,17 @@ def main() -> None:
         sys.exit(1)
 
     entry = PROMPTS[idx]
-    print(f"\n[gpt-image-2] Generando: {entry['label']}")
+    print(f"\n[gpt-image-2] Generando con el flujo validado: {entry['label']}")
     print(f"Prompt: {entry['prompt'][:100]}...")
 
-    image_bytes = generate_image(entry["prompt"])
+    image_path = generate_image(entry["prompt"])
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_path = OUT_DIR / f"{entry['id']}_{ts}.png"
-    out_path.write_bytes(image_bytes)
+    shutil.copy2(image_path, out_path)
 
     print(f"\nOK Imagen guardada en: {out_path}")
-    print(f"  Tamaño: {len(image_bytes) / 1024:.1f} KB")
+    print(f"  Tamaño: {out_path.stat().st_size / 1024:.1f} KB")
 
 
 if __name__ == "__main__":

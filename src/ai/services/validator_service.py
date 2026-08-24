@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+
+from src.ai.services.content_quality import compact_retrieval
 from src.ai.services.openai_client import OpenAIClient
 from src.ai.services.prompt_service import base_prompt, schema, validator_prompt
 from src.domain.editorial import RISK_FLAGS
@@ -11,20 +14,27 @@ class ValidatorService:
 
     def validate(self, request: dict, brief: dict, retrieval: dict, generation: dict, db: dict) -> tuple[dict, str | None]:
         if self.client.enabled:
-            try:
-                user = (
-                    "Valida y corrige esta pieza para Nexia GP.\n"
-                    f"Solicitud: {request}\nBrief: {brief}\nContexto: {retrieval}\nPieza: {generation}"
-                )
-                return self.client.responses_json(
-                    system=f"{base_prompt()}\n\n{validator_prompt()}",
-                    user=user,
-                    schema=schema("validation.schema.json"),
-                    schema_name="nexiagp_validation",
-                    model=db.get("settings", {}).get("model") or None,
-                )
-            except Exception:
-                return self._fallback_validate(brief, retrieval, generation), None
+            generation_summary = {
+                "strategy": generation.get("strategy", {}),
+                "copy": generation.get("copy", {}),
+                "editorial_support": {
+                    "human_review_notes": (generation.get("editorial_support") or {}).get("human_review_notes", [])[:4],
+                },
+            }
+            user = (
+                "Valida y corrige esta pieza para Nexia GP.\n"
+                f"Solicitud: {json.dumps(request, ensure_ascii=False, separators=(',', ':'))}\n"
+                f"Brief: {json.dumps(brief, ensure_ascii=False, separators=(',', ':'))}\n"
+                f"Contexto: {json.dumps(compact_retrieval(retrieval, source_limit=3, excerpt_limit=340), ensure_ascii=False, separators=(',', ':'))}\n"
+                f"Pieza: {json.dumps(generation_summary, ensure_ascii=False, separators=(',', ':'))}"
+            )
+            return self.client.responses_json(
+                system=f"{base_prompt()}\n\n{validator_prompt()}",
+                user=user,
+                schema=schema("validation.schema.json"),
+                schema_name="nexiagp_validation",
+                model=db.get("settings", {}).get("model") or None,
+            )
         return self._fallback_validate(brief, retrieval, generation), None
 
     @staticmethod

@@ -37,33 +37,31 @@ class AdaptationService:
     def adapt(self, generation: dict, validation: dict, db: dict) -> tuple[dict, str | None]:
         canonical = validation.get("final_post") or ""
         if self.client.enabled:
-            try:
-                user = (
-                    "Adapta el post canonico validado de Nexia GP a X y Facebook.\n"
-                    f"Post canonico: {canonical}\n"
-                    f"CTA: {validation.get('cta')}\n"
-                    f"Hashtags: {validation.get('hashtags')}\n"
-                    f"Contexto de salida original: {generation}"
-                )
-                system = "\n\n".join(
-                    [
-                        base_prompt(),
-                        transformer_prompt("adaptacion_x"),
-                        transformer_prompt("adaptacion_facebook"),
-                    ]
-                )
-                adaptations, response_id = self.client.responses_json(
-                    system=system,
-                    user=user,
-                    schema=schema("adaptation.schema.json"),
-                    schema_name="nexiagp_adaptations",
-                    model=db.get("settings", {}).get("model") or None,
-                )
-                adaptations = self._enforce_x_limits(adaptations, db)
-                adaptations = self._enforce_facebook_distinct(adaptations, canonical, validation, db)
-                return adaptations, response_id
-            except Exception:
-                return self._fallback_adapt(validation), None
+            user = (
+                "Adapta el post canonico validado de Nexia GP a X y Facebook.\n"
+                f"Post canonico: {canonical}\n"
+                f"CTA: {validation.get('cta')}\n"
+                f"Hashtags: {validation.get('hashtags')}\n"
+                f"Angulo: {(generation.get('strategy') or {}).get('core_angle', '')}\n"
+                "No recuperes ni repitas borradores, notas ni trazas internas."
+            )
+            system = "\n\n".join(
+                [
+                    base_prompt(),
+                    transformer_prompt("adaptacion_x"),
+                    transformer_prompt("adaptacion_facebook"),
+                ]
+            )
+            adaptations, response_id = self.client.responses_json(
+                system=system,
+                user=user,
+                schema=schema("adaptation.schema.json"),
+                schema_name="nexiagp_adaptations",
+                model=db.get("settings", {}).get("model") or None,
+            )
+            adaptations = self._enforce_x_limits(adaptations, db)
+            adaptations = self._enforce_facebook_distinct(adaptations, canonical, validation, db)
+            return adaptations, response_id
         return self._fallback_adapt(validation), None
 
     def _enforce_x_limits(self, adaptations: dict, db: dict) -> dict:

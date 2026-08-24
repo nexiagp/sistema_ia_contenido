@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+
+from src.ai.services.content_quality import compact_retrieval
 from src.ai.services.context_helpers import recent_openings
 from src.ai.services.openai_client import OpenAIClient
 from src.ai.services.prompt_service import base_prompt, post_type_prompt, schema
@@ -11,28 +14,25 @@ class WriterService:
 
     def write(self, request: dict, brief: dict, retrieval: dict, db: dict) -> tuple[dict, str | None]:
         if self.client.enabled:
-            try:
-                user = self._build_user_prompt(request, brief, retrieval, db)
-                system = f"{base_prompt()}\n\n{post_type_prompt(brief['post_type'])}"
-                return self.client.responses_json(
-                    system=system,
-                    user=user,
-                    schema=schema("generation.schema.json"),
-                    schema_name="nexiagp_generation",
-                    model=db.get("settings", {}).get("model") or None,
-                )
-            except Exception:
-                return self._fallback_write(request, brief, retrieval), None
+            user = self._build_user_prompt(request, brief, retrieval, db)
+            system = f"{base_prompt()}\n\n{post_type_prompt(brief['post_type'])}"
+            return self.client.responses_json(
+                system=system,
+                user=user,
+                schema=schema("generation.schema.json"),
+                schema_name="nexiagp_generation",
+                model=db.get("settings", {}).get("model") or None,
+            )
         return self._fallback_write(request, brief, retrieval), None
 
     @staticmethod
     def _build_user_prompt(request: dict, brief: dict, retrieval: dict, db: dict) -> str:
-        avoid_hooks = recent_openings(db, limit=15)
+        avoid_hooks = [item[:160] for item in recent_openings(db, limit=10)]
         return (
             "Redacta el contenido con salida estructurada.\n"
-            f"Solicitud original: {request}\n"
-            f"Brief estrategico: {brief}\n"
-            f"Contexto recuperado: {retrieval}\n"
+            f"Solicitud original: {json.dumps(request, ensure_ascii=False, separators=(',', ':'))}\n"
+            f"Brief estrategico: {json.dumps(brief, ensure_ascii=False, separators=(',', ':'))}\n"
+            f"Contexto recuperado: {json.dumps(compact_retrieval(retrieval), ensure_ascii=False, separators=(',', ':'))}\n"
             f"Aperturas recientes que NO debes repetir (cambia el mecanismo del hook; "
             f"prohibido el patron 'En Canarias, una buena X no basta'): {avoid_hooks}\n"
             "No uses ninguna fuente fuera del briefing y del contexto recuperado."

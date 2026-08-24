@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 from uuid import uuid4
 
 from src.ai.services.blog_planner_service import BlogPlannerService
 from src.ai.services.blog_seo_service import BlogSEOService
 from src.ai.services.blog_writer_service import BlogWriterService
+from src.ai.services.content_quality import blog_quality_gate
 from src.ai.services.openai_client import OpenAIClient
 from src.ai.services.retrieval_service import RetrievalService
 
@@ -19,12 +20,19 @@ class BlogPipeline:
         self.writer = BlogWriterService(self.client)
         self.seo = BlogSEOService(self.client)
 
-    def run(self, request: dict, db: dict) -> dict:
+    def run(self, request: dict, db: dict, on_step: Callable[[str, str], None] | None = None) -> dict:
+        request = normalize_request(request)
         responses: dict[str, str | None] = {}
 
+        def report(step: str, message: str) -> None:
+            if on_step:
+                on_step(step, message)
+
+        report("retrieval", "Localizando fuentes y contexto inicial para la tesis.")
         initial_brief = self._brief_for_retrieval(request)
         retrieval = self.retrieval.retrieve(db, initial_brief, request)
 
+        report("planner", "Diseñando estructura, intención de búsqueda y enfoque editorial.")
         brief, responses["planner"] = self.planner.plan(request, retrieval, db)
 
         post_planner_brief = self._brief_for_retrieval({**request, **{
@@ -36,11 +44,16 @@ class BlogPipeline:
             "core_thesis": brief.get("core_thesis", ""),
             "keywords": [brief.get("primary_keyword", "")] + brief.get("secondary_keywords", []),
         })
+        report("retrieval_refined", "Afinando las fuentes para el enfoque ya definido.")
         retrieval = self.retrieval.retrieve(db, post_planner_brief, request)
 
+        report("writer", "Redactando el artículo y su estructura SEO.")
         article, responses["writer"] = self.writer.write(request, brief, retrieval, db)
+        report("seo", "Revisando SEO, metadatos, enlazado y esquema del artículo.")
         seo, responses["seo"] = self.seo.build(brief, article, db)
+        article, seo, quality_gate = blog_quality_gate(request, brief, retrieval, article, seo)
 
+        report("finalizing", "Guardando el artículo, sus fuentes y las figuras pendientes.")
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         blog = {
             "id": f"blog_{uuid4().hex[:12]}",
@@ -49,11 +62,12 @@ class BlogPipeline:
             "status": "draft",
             "provider": "openai" if self.client.enabled else "local_pipeline",
             "source": "blog_pipeline",
-            "request": normalize_request(request),
+            "request": request,
             "brief": brief,
             "retrieval": retrieval,
             "article": article,
             "seo": seo,
+            "qualityGate": quality_gate,
             "responseIds": responses,
             "title": brief.get("h1"),
             "slug": seo.get("slug"),
@@ -72,6 +86,7 @@ class BlogPipeline:
             "retrieval": retrieval,
             "article": article,
             "seo": seo,
+            "usage": self.client.usage_totals(),
         }
 
     @staticmethod

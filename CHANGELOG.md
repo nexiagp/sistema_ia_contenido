@@ -4,6 +4,149 @@ Formato: por sesion y por fase. Cada entrada referencia el commit (`git log`).
 
 ---
 
+## Sesión 7 — 2026-08-22 — Cierre editorial, PNG y calendario de ocupación
+
+**Estado de esta entrada:** cambios locales verificados en Chrome y por suite offline; no hay
+commit ni despliegue. El handoff vigente está en
+`Documentación Nexia/2026-08-cierre-pre-entrega.md`.
+
+### Posts e imagen
+
+- La bandeja conserva la lista plegada, pero el detalle se convierte en una mesa de revisión:
+  copy a la izquierda, pieza visual a la derecha y controles de imagen recogidos. Las imágenes usan
+  `contain`, no un recorte estrecho; el modal muestra la pieza completa.
+- La dirección visual pasa a decisiones editoriales explícitas: intención, encuadre, formato y
+  calidad. El contrato de prompt prioriza una escena fotográfica única y excluye collages, texto,
+  mapas, planos, diagramas y clichés de stock.
+- Cada post puede conservar y comparar hasta cinco variantes sin perder el activo anterior.
+  El activo seleccionado, sus variantes y las figuras de blog incluyen **Descargar PNG**, que baja
+  el binario final sin canvas ni recompresión.
+
+### Blogs y calendario
+
+- Blogs se seleccionan desde tarjetas; el detalle mantiene la vista previa y ordena debajo SEO,
+  enfoque/brief, JSON-LD e imágenes como controles bajo demanda. SEO ahora se entiende como ficha
+  de resultado y el JSON bruto solo se abre cuando hace falta.
+- El calendario separa candidatos de post (con miniatura y extracto) y blog (lista editorial
+  compacta), permitiendo reservar día y hora antes de añadirlos. `PATCH /api/blogs/:id` admite
+  `scheduledFor` y aplica la misma puerta de revisión que los posts.
+- La agenda editorial abre en vista mensual: ocupa y diferencia días con piezas, deja huecos
+  explícitos, permite navegar meses y pulsar un día para ver detalle. La vista de lista permanece
+  como alternativa. Se corrigió el desbordamiento del CTA de los blogs.
+
+### Mantenimiento y verificación
+
+- `index.html` versiona CSS/JS para evitar mezclas de caché tras las mejoras visuales.
+- Se añadieron contratos offline para dirección visual, calidad/contenido, imágenes y programación
+  de blogs; el conjunto actual suma 17 pruebas. La comprobación se hace en Chrome, no en la vista
+  previa integrada.
+- README, estado maestro y documentación se sincronizan con las cifras de datos de este cierre.
+
+---
+
+## Sesión 6 — 2026-08-22 — Auditoría de entrega, trazabilidad y quality gates
+
+**Estado de esta entrada:** cambios locales verificados; no hay commit ni despliegue.
+
+### Calidad, fuentes y coste
+
+- Nuevo `content_quality.py`: reconciliación determinista de fuentes, compactación de contexto,
+  gate editorial, sanitización HTML de blogs, validación de SEO/JSON-LD y checks de estructura.
+- `RetrievalService` usa `POST /vector_stores/{id}/search` y mapea `file_id`/nombre/atributos al
+  catálogo local. Se elimina la dependencia de una lista de fuentes descrita por el modelo.
+- Las fuentes desconocidas se excluyen y los fragmentos de un mismo archivo se agrupan. Tipos
+  factuales exigen revisión humana y, para `dato_opinion`, evidencia sectorial/oficial catalogada.
+- Writer, validator y adaptador reciben payloads compactos. Prueba final: 12.901 tokens / 4
+  llamadas frente a 22.767 / 5 en la primera prueba (−43 %).
+- `OpenAIClient` y el endpoint heredado de Responses aplican `store:false`.
+
+### Revisión editorial y blogs
+
+- `qualityGate` bloquea pasar posts/blogs a listo, programado o publicado hasta que la persona
+  revisora confirma explícitamente la lectura; la edición posterior revoca esa confirmación.
+- El scheduler conserva borradores bloqueados aunque se active un modo de salida futuro.
+- HTML de blogs restringido a una lista permitida; se eliminan scripts, eventos, iframes, URLs
+  JavaScript y falsas descargas de lead magnet. JSON-LD se normaliza antes de exportar.
+- Rango de longitudes de blog alineado con dominio (800–1200 / 1500–2200 / 2500–3500), frameworks
+  de UI corregidos y texto de 11 tipos de post corregido.
+
+### Seguridad, UX y pruebas
+
+- Rutas estáticas con comprobación de pertenencia real, límite JSON de 1 MB, uploads acotados a
+  50 MB y tipos documentales permitidos, MIME JPEG correcto y errores internos sin detalle al
+  navegador.
+- Métrica de tokens corregida (no vuelve a mostrar `NaN`).
+- Se amplía `Pillow` a `>=10,<13`, compatible con la versión 12.3 validada.
+- Nueva suite `test_content_quality.py`; total de 12 pruebas offline correctas, compilación Python,
+  sintaxis JS, traversal 404 y JSON inválido/sobredimensionado 400/413 comprobados.
+- Pruebas reales, siempre en borrador: cuatro posts y una imagen PNG 1536×1024 con marco NGP y
+  distribución Cloudinary. El post histórico que seguía en `ready` se baja a `draft` por revisión
+  pendiente; no se borra contenido ni se publica nada.
+
+Informe de evidencia y pendientes: `Documentación Nexia/2026-08-auditoria-de-entrega.md`.
+
+---
+
+## Sesión 5 — 2026-08-16 — Entrega, control operativo e imagen fiable
+
+**Estado de esta entrada:** cambios locales verificados, todavía sin commit ni despliegue.
+
+### Imagen, logo y coste
+
+- `image_service.py` refactorizado como frontera estricta de generación: tres tamaños admitidos
+  por `gpt-image-2`, calidades permitidas, prompt de producción sin texto/marcas, dos intentos
+  recuperables, inspección de PNG con Pillow y persistencia atómica.
+- `frame_composer.py` aplica el logo aprobado localmente, verifica el PNG final y no deja un
+  compuesto parcial. Cloudinary pasa a ser solo distribución del activo ya marcado.
+- Posts y figuras de blog guardan `displayUrl`, validación y configuración coherentes incluso sin
+  Cloudinary; ya no dependen de una transformación CDN para mostrar marca correcta.
+- Coste real preventivo en figuras de blog: `costTargetCents` bloquea antes de pedir una imagen si
+  el total estimado superaría el presupuesto. Las estimaciones se conservan por figura y se
+  reconstruyen desde configuraciones antiguas cuando es posible.
+- Añadido `test_image_service_offline.py`: contrato de formatos/calidades, prompt seguro, PNG
+  válido, fallo sin residuo, marco/logo y publicación bloqueada sin webhook (6/6 correcto).
+
+### Producto y operación
+
+- Nuevos trabajos locales en segundo plano para posts y blogs (`/api/jobs/editorial`,
+  `/api/jobs/blog`, `/api/jobs/:id`) con progreso por etapas reales, sondeo desde la SPA y prueba
+  aislada de ciclo de vida sin OpenAI.
+- `BlogPipeline` ahora devuelve uso de tokens, por lo que blog también actualiza `usageStats`.
+- Añadida vista de **Calendario**: programación interna mediante `scheduledFor` UTC y estado
+  `scheduled`, sin representar falsamente que se ha publicado en redes.
+- Publicación manual rechazada sin `SOCIAL_WEBHOOK_URL` y modo `auto` degradado a revisión cuando
+  no existe una integración social. Biblioteca ampliada con filtros, búsqueda y estados legibles.
+
+### Interfaz de entrega
+
+- Corrección global de SVG de controles, métricas de seis tarjetas equilibradas, blog menos
+  comprimido y menú móvil colapsable.
+- Vista Posts rehecha como bandeja de revisión compacta: cada tarjeta inicia cerrada; la pieza
+  completa, fuentes y acciones se muestran solo al abrirla.
+- Eliminado el encabezado teal/verde grande de las tarjetas. Titulares reducidos, fondo blanco,
+  resumen truncado y acento usado únicamente con valor funcional.
+- Imagen de post reducida a miniatura dentro del detalle y ampliación explícita por diálogo modal.
+  No se muestran imágenes de tamaño completo antes de solicitarlas.
+
+### Investigación y documentación
+
+- Catálogo de fuentes oficiales de Canarias en
+  `Documentación Nexia/Fuentes Oficiales/2026-08-fuentes-oficiales-canarias.md`.
+- Propuesta de vídeo API de 8 s, todavía sin endpoint ni coste activado, en
+  `Documentación Nexia/2026-08-plan-video-api.md`.
+- Handoff técnico completo de la sesión en
+  `Documentación Nexia/2026-08-entrega-y-continuidad.md`.
+
+### Verificación realizada
+
+- `node --check public/app.js` sin errores.
+- `python -m py_compile` para servidor y pipelines sin errores.
+- `python test_image_service_offline.py`: 6 pruebas correctas.
+- App local comprobada con `GET /api/health`, en escritorio y móvil, sin errores/avisos de consola.
+- No se ejecutó ninguna llamada que consumiera OpenAI, sincronización ni publicación.
+
+---
+
 ## Sesion 4 — 2026-06-30 — Auditoria + Fases 0, 1 y 2
 
 Auditoria completa (Product Manager + experto en redes B2B) y tres fases de mejora implementadas,

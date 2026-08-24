@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 from uuid import uuid4
 
 from src.ai.services.adaptation_service import AdaptationService
+from src.ai.services.content_quality import post_quality_gate
 from src.ai.services.context_helpers import normalize_hashtags
 from src.ai.services.openai_client import OpenAIClient
 from src.ai.services.planner_service import PlannerService
@@ -22,14 +23,24 @@ class EditorialPipeline:
         self.validator = ValidatorService(self.client)
         self.adapter = AdaptationService(self.client)
 
-    def run(self, request: dict, db: dict) -> dict:
+    def run(self, request: dict, db: dict, on_step: Callable[[str, str], None] | None = None) -> dict:
         responses: dict[str, str | None] = {}
+
+        def report(step: str, message: str) -> None:
+            if on_step:
+                on_step(step, message)
+
+        report("planner", "Definiendo el ángulo, la audiencia y el objetivo editorial.")
         brief, responses["planner"] = self.planner.plan(request, db)
+        report("retrieval", "Recuperando fuentes verificables y contexto sectorial.")
         retrieval = self.retrieval.retrieve(db, brief, request)
+        report("writer", "Redactando la pieza a partir del brief y las fuentes trazadas.")
         generation, responses["writer"] = self.writer.write(request, brief, retrieval, db)
+        report("validator", "Comprobando riesgos, claims, tono y consistencia de marca.")
         validation, responses["validator"] = self.validator.validate(request, brief, retrieval, generation, db)
 
         validation["hashtags"] = normalize_hashtags(validation.get("hashtags"))
+        quality_gate = post_quality_gate(request, brief, retrieval, validation)
         generation["copy"]["final_post"] = validation["final_post"]
         generation["copy"]["cta"] = validation["cta"]
         generation["copy"]["hashtags"] = validation["hashtags"]
@@ -46,11 +57,13 @@ class EditorialPipeline:
 
         adaptations = None
         if request.get("necesita_adaptacion_multicanal", True):
+            report("adaptation", "Preparando las versiones específicas para X y Facebook.")
             adaptations, responses["adaptation"] = self.adapter.adapt(generation, validation, db)
             # Garantia de entrega completa: si faltan X o Facebook, usa el fallback (nunca {} vacio).
             if not _adaptations_complete(adaptations):
                 adaptations = self.adapter._fallback_adapt(validation)
 
+        report("finalizing", "Guardando la pieza y su trazabilidad editorial.")
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         usage = self.client.usage_totals()
         post = {
@@ -65,6 +78,7 @@ class EditorialPipeline:
             "retrieval": retrieval,
             "generation": generation,
             "validation": validation,
+            "qualityGate": quality_gate,
             "adaptations": adaptations,
             "responseIds": responses,
             "title": generation.get("strategy", {}).get("core_angle") or brief.get("core_angle"),

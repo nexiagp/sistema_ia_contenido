@@ -1,0 +1,10 @@
+# Credentials and local state are never deployment inputs.
+.env
+.env.*
+data/
+Documentación Nexia/
+test_*.py
+__pycache__/
+*.pyc
+API Key Project.txt
+API CLOUDINARY.txt

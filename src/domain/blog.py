@@ -83,7 +83,7 @@ BLOG_LENGTH_TARGETS = {
     "largo": {"label": "Largo / pillar (2500-3500 palabras)", "min": 2500, "max": 3500},
 }
 
-BLOG_STATUSES = ["draft", "review", "ready", "published"]
+BLOG_STATUSES = ["draft", "review", "ready", "scheduled", "published"]
 
 BLOG_REVIEW_FLAGS = [
     "thin_content_risk",

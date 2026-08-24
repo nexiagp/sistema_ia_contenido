@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 from .openai_client import OpenAIClient
+from src.domain.visual import (
+    COMPOSITIONS,
+    VISUAL_DIRECTIONS,
+    normalize_visual_choice,
+    visual_direction_prompt,
+)
 
 
 _SCHEMA = {
@@ -25,7 +31,10 @@ MANDATORY CRITERIA:
 - Natural or professional studio lighting, real depth of field
 - Specific, concrete scenes — not generic representations
 - When the post context is Canary Islands: include relevant visual cues (volcanic landscape, Atlantic coastline, Mediterranean light, island architecture)
-- No text, no logos, no brand elements anywhere in the image
+- No text, no logos, no brand elements anywhere in the image. Do not try to reproduce Nexia GP's logo: it is applied after generation by a deterministic brand compositor.
+- Follow the supplied logo-safe-area instruction exactly: it only applies when the editor has activated the local brand frame.
+- Never solve a business concept with a map, diagram, chart, technical drawing, readable paperwork, collage or split screen. A photograph must work as a real scene before it works as an illustration.
+- The selected visual role and composition are binding. They are creative decisions made by the editor, not optional inspiration.
 
 STRICTLY AVOID (stock photo clichés):
 - Forced handshakes between suited people
@@ -38,13 +47,13 @@ PREFER INSTEAD:
 - Real warehouse workers doing their actual job
 - Industrial machinery in authentic operation
 - Distribution trucks at a real loading dock at golden hour
-- An actual B2B meeting: papers on the table, coffee cups, working atmosphere
+- An actual B2B working exchange around a material sample, equipment or physical task
 - Aerial drone shots of logistics infrastructure
 - Close-up of hands operating equipment
 - Real port or harbor activity in Canary Islands
 
 PROMPT STRUCTURE:
-[Specific concrete scene with action verb] · [Real industry setting/environment details] · [Photography style] · [Lighting description] · [Camera/lens aesthetic] · [Composition] · No text, no logos, no brand elements
+[Specific concrete scene with action verb] · [Real industry setting/environment details] · [Photography style] · [Lighting description] · [Camera/lens aesthetic] · [Selected composition] · No text, no logos, no brand elements
 
 Output ONLY the image_prompt (in English) and a brief scene_rationale (in Spanish, for the editor to understand your choice).
 """
@@ -54,7 +63,15 @@ class ImagePromptService:
     def __init__(self, client: OpenAIClient) -> None:
         self.client = client
 
-    def generate_prompt(self, post: dict, style: str, user_notes: str) -> tuple[str, str | None]:
+    def generate_prompt(
+        self,
+        post: dict,
+        direction: object,
+        composition: object,
+        user_notes: str,
+        *,
+        with_frame: bool,
+    ) -> tuple[dict, str | None]:
         generation = post.get("generation") or {}
         copy_obj = generation.get("copy") or {}
         support = generation.get("editorial_support") or {}
@@ -68,6 +85,7 @@ class ImagePromptService:
         sector = request.get("sector") or ""
         channel = request.get("canal") or post.get("platform") or "linkedin"
 
+        direction_id, composition_id = normalize_visual_choice(direction, composition)
         parts = [
             f"POST ANGLE: {angle}" if angle else "",
             f"CORE THESIS: {thesis}" if thesis else "",
@@ -78,7 +96,9 @@ class ImagePromptService:
             "POST BODY (first 1200 chars):",
             final_post[:1200],
             "",
-            f"PREFERRED VISUAL STYLE: {style}",
+            f"SELECTED VISUAL ROLE: {VISUAL_DIRECTIONS[direction_id]['label']}",
+            f"SELECTED COMPOSITION: {COMPOSITIONS[composition_id]['label']}",
+            visual_direction_prompt(direction_id, composition_id, with_frame=with_frame),
             f"ADDITIONAL USER NOTES: {user_notes}" if user_notes and user_notes.strip() else "",
         ]
         user_input = "\n".join(p for p in parts if p is not None)
@@ -89,4 +109,4 @@ class ImagePromptService:
             schema=_SCHEMA,
             schema_name="image_prompt_result",
         )
-        return result["image_prompt"], response_id
+        return result, response_id
