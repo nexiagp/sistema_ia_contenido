@@ -68,6 +68,32 @@ class ManufacturerSourceTests(unittest.TestCase):
         self.assertEqual(result["updated"], 0)
         self.assertIn("no configurado", result["skipped"])
 
+    def test_openai_sync_can_be_bounded_to_requested_files(self) -> None:
+        target = {
+            "id": "target", "name": "target.md", "mimeType": "text/markdown",
+            "category": "fabricante", "status": "local_only",
+        }
+        skipped = {
+            "id": "skipped", "name": "skipped.md", "mimeType": "text/markdown",
+            "category": "fabricante", "status": "local_only",
+        }
+        db = {"settings": {"vectorStoreId": "vs_test"}, "files": [target, skipped]}
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "test"}, clear=False), \
+             patch.object(server, "read_db", return_value=db), \
+             patch.object(server, "write_db") as write_db, \
+             patch.object(server, "read_source_file_bytes", return_value=b"# source"), \
+             patch.object(server, "upload_openai_file", return_value={"id": "file_openai"}) as upload, \
+             patch.object(server, "attach_file_to_vector_store", return_value={"id": "vector_file"}), \
+             patch.object(server, "poll_vector_store_file", return_value={"status": "completed"}):
+            result = server.sync_files_to_openai({"target"})
+
+        self.assertEqual(len(result["synced"]), 1)
+        self.assertEqual(result["synced"][0]["id"], "target")
+        self.assertEqual(target["status"], "completed")
+        self.assertEqual(skipped["status"], "local_only")
+        self.assertEqual(upload.call_count, 1)
+        write_db.assert_called_once_with(db)
+
 
 if __name__ == "__main__":
     unittest.main()

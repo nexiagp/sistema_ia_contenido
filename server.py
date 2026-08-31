@@ -453,7 +453,17 @@ class AppHandler(SimpleHTTPRequestHandler):
                 return
 
             if self.command == "POST" and path == "/api/files/sync-openai":
-                self.send_json(sync_files_to_openai(), status=200)
+                body = self.read_json()
+                requested_ids = body.get("fileIds")
+                if requested_ids is not None and (
+                    not isinstance(requested_ids, list)
+                    or any(not isinstance(item, str) or not item.strip() for item in requested_ids)
+                ):
+                    raise ApiError("fileIds debe ser una lista de identificadores de archivo.", 400)
+                self.send_json(
+                    sync_files_to_openai({item.strip() for item in requested_ids} if requested_ids is not None else None),
+                    status=200,
+                )
                 return
 
             if self.command == "POST" and path == "/api/manufacturer-sources/bootstrap":
@@ -1861,13 +1871,21 @@ def import_local_documents() -> dict:
     return {"ok": True, "imported": imported, "skipped": skipped, "state": decorate_state(db)}
 
 
-def sync_files_to_openai() -> dict:
+def sync_files_to_openai(file_ids: set[str] | None = None) -> dict:
+    """Synchronise every pending file, or an explicitly bounded subset.
+
+    The optional subset lets the production worker handle large source imports
+    in safe batches without changing the existing editor action, which sends
+    an empty body and still processes the entire library.
+    """
     if not os.getenv("OPENAI_API_KEY"):
         raise ApiError("Falta OPENAI_API_KEY", 400)
     db = read_db()
     synced = []
     errors = []
     for item in db.get("files", []):
+        if file_ids is not None and item.get("id") not in file_ids:
+            continue
         # A refreshed manufacturer document keeps one logical source file. Its
         # previous vector-store attachment is removed only when the editor
         # explicitly runs this synchronisation, then the current contents are
