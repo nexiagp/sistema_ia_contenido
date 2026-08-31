@@ -9,19 +9,19 @@ Esta es la referencia de continuidad para la ampliación de fuentes acordada con
 
 | Elemento | Estado |
 | --- | --- |
-| Biblioteca editorial | 67 documentos completados en la Vector Store de OpenAI; 0 fallidos o pendientes. |
-| Fuentes de fabricantes | 21 webs oficiales extraídas y registradas como documentos de fabricante. |
+| Biblioteca editorial de producción | 66 documentos registrados en Supabase; los 20 documentos de fabricante disponibles constan como completados en la Vector Store de OpenAI. |
+| Fuentes de fabricantes | 20 de 21 webs oficiales recuperadas, almacenadas e indexadas. Altuna Group queda pendiente de reintento por tiempo de espera de su web oficial. |
 | Uso por IA | Las fuentes se almacenan en la misma biblioteca y Vector Store que ya consulta el pipeline de posts y blogs. |
 | Scheduler | Activo, una pieza cada 3 días, con rotación de todas las temáticas activas. |
 | Salida del scheduler | `draft`: genera borradores; no publica por sí solo. |
 | Tratamiento inicial de imagen de post | Marco Nexia + logo Nexia activados para el primer visual que se solicite. El scheduler no genera imágenes automáticamente ni consume crédito de imagen sin una acción editorial. |
 | X | Ninguna cuenta activada todavía. La integración queda preparada, pero no hace llamadas ni incurre en consumo hasta configurar y habilitar una cuenta. |
 
-El estado anterior se ha comprobado en el entorno local de trabajo. El código y el catálogo deben desplegarse y sincronizarse con el estado de Supabase de producción antes de considerar este mismo inventario disponible en la URL pública.
+Este estado se comprobó en producción tras los despliegues `6081886`, `bf89d03` y `699bd72`: la URL pública usa Supabase como fuente de verdad y el catálogo queda disponible para recuperación editorial en posts y blogs.
 
 ## Fabricantes incorporados
 
-Airum, AR Blue Clean, STANLEY Tools, Altuna Group, ODEM, Vithal Garden, BIV, PIHER, Diadora Utility, Marefix, Catmader, DCK Power Tools, Fireside, TAGU, Sahara BBQs, Paul Voormann, Sesa Tools, Saviola, Fabricados LMG, Catral Group y Sibol Spaciani.
+Airum, AR Blue Clean, STANLEY Tools, ODEM, Vithal Garden, BIV, PIHER, Diadora Utility, Marefix, Catmader, DCK Power Tools, Fireside, TAGU, Sahara BBQs, Paul Voormann, Sesa Tools, Saviola, Fabricados LMG, Catral Group y Sibol Spaciani ya están disponibles como fuentes indexadas. Altuna Group está registrada en el catálogo, pero su sitio oficial agotó el tiempo de espera y no se ha incorporado contenido parcial.
 
 El listado procede del catálogo de distribuidores de [Nexia GP](https://nexiagp.com/distribuidores/). Cada registro conserva únicamente una web oficial verificada y su estado de actualización; las URLs sociales que aparezcan en ella se descubren pero no se usan como fuente automática salvo X, con la configuración descrita más abajo.
 
@@ -31,7 +31,7 @@ El listado procede del catálogo de distribuidores de [Nexia GP](https://nexiagp
 Web oficial del fabricante
         │ actualización manual, limitada al dominio y a un máximo de 5 páginas
         ▼
-Documento Markdown local de fabricante
+Documento Markdown de fabricante en Supabase
         │ "Sincronizar OpenAI" explícito
         ▼
 Vector Store de OpenAI
@@ -79,7 +79,7 @@ Los enlaces que aparezcan en la web de cada marca se muestran en la aplicación 
 
 ### Requieren una decisión o acceso del equipo
 
-- Desplegar este cambio y sembrar el catálogo/estado de fuentes en Supabase de producción. La sincronización OpenAI ya realizada corresponde al entorno local actual; la URL pública necesita el despliegue y su estado persistente para catalogar las fuentes también allí.
+- Reintentar Altuna Group desde su URL alternativa cuando el sitio oficial vuelva a responder. No sustituirla por fuentes no oficiales ni subir contenido parcial.
 - Configurar `X_API_BEARER_TOKEN` en el entorno de producción y confirmar, una a una, las cuentas oficiales de X que Nexia tenga autorización para monitorizar.
 - Definir con Begoña/marketing el mecanismo de publicación automática de blogs en la web: CMS de destino, credenciales, estados de aprobación, imágenes, URL final y gestión de errores.
 - Decidir si se añade un webhook social aprobado (`SOCIAL_WEBHOOK_URL`). Mientras no exista, la aplicación conserva los posts en revisión/listos y no los publica.
@@ -98,8 +98,7 @@ Los enlaces que aparezcan en la web de cada marca se muestran en la aplicación 
 
 ## Verificación realizada en esta actualización
 
-- 21 documentos de fabricante sincronizados correctamente; la operación también completó un adjunto anterior que estaba en seguimiento: 22 sincronizaciones correctas y 0 errores.
-- Estado final comprobado: 67 documentos completados, 21 de fabricantes, 0 pendientes y 0 fallidos.
+- 20 documentos de fabricante recuperados, almacenados en Supabase e indexados correctamente en OpenAI; Altuna quedó registrada con error de tiempo de espera y sin documento asociado.
+- Estado final de producción comprobado: 66 archivos, 20 fuentes de fabricante completadas, 0 fallidas en OpenAI y 1 fuente pendiente de reintento web.
 - Scheduler comprobado activo, cadencia de tres días y modo de salida en borrador.
-- Pruebas offline, análisis sintáctico de Python/JavaScript y comprobación de espacios de Git ejecutados antes del cierre.
-
+- Pruebas offline, análisis sintáctico de Python/JavaScript, comprobación de Git y verificación del despliegue Vercel ejecutados antes del cierre.

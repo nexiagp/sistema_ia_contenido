@@ -2,17 +2,19 @@
 
 ## Actualización vigente — 31/08/2026
 
-- **Fuentes de fabricantes:** se han extraído 21 webs oficiales, registrado sus documentos y
-  sincronizado con la Vector Store del entorno local (67 documentos completados en total).
+- **Fuentes de fabricantes:** 20 webs oficiales están recuperadas, guardadas en Supabase de
+  producción e indexadas en OpenAI. Altuna Group queda registrada pero pendiente de reintento por
+  tiempo de espera de su web oficial; no contiene una fuente parcial.
 - **Automatización:** scheduler activado, una pieza cada tres días y rotación circular de las
   temáticas activas. Mantiene el modo `draft`, sin publicación autónoma.
 - **Imagen de posts:** marco y logo Nexia quedan seleccionados como acabado inicial; el editor
   puede quitarlos o combinarlos por separado en cada propuesta.
 - **X:** preparado para monitorización diaria opt-in mediante `X_API_BEARER_TOKEN`; no hay cuentas
   ni llamadas activas todavía. Instagram y LinkedIn siguen con revisión manual.
+- **Producción:** los commits `6081886`, `bf89d03` y `699bd72` están desplegados en Vercel. El
+  scheduler remoto está activo con cadencia de tres días y modo `draft`.
 - **Referencia completa:** [Estado y hoja de ruta](docs/ESTADO_Y_HOJA_DE_RUTA_2026-08-31.md),
-  incluidos el estado, flujo, procedimiento y tareas pendientes. Antes de producción, desplegar
-  código y sembrar las fuentes en el estado persistente de Supabase.
+  incluidos el estado, flujo, procedimiento y tareas pendientes.
 
 **Fecha de referencia: 2026-08-24**
 
