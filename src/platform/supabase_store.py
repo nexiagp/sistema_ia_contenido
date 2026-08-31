@@ -100,6 +100,13 @@ class SupabaseStore:
 
     def upload_object(self, bucket: str, object_path: str, content: bytes, mime_type: str | None = None) -> None:
         encoded_path = "/".join(urllib.parse.quote(part, safe="") for part in object_path.split("/"))
+        # Storage bucket allow-lists compare the media type itself, not HTTP
+        # parameters.  Keep a caller's useful type while stripping values such
+        # as ``; charset=utf-8`` that Supabase correctly rejects as a distinct
+        # MIME type.
+        content_type = (mime_type or mimetypes.guess_type(object_path)[0] or "application/octet-stream").split(";", 1)[0].strip()
+        if not content_type:
+            content_type = "application/octet-stream"
         request = urllib.request.Request(
             f"{self.url}/storage/v1/object/{urllib.parse.quote(bucket, safe='')}/{encoded_path}",
             data=content,
@@ -107,7 +114,7 @@ class SupabaseStore:
             headers={
                 "apikey": self.service_key,
                 "authorization": f"Bearer {self.service_key}",
-                "content-type": mime_type or mimetypes.guess_type(object_path)[0] or "application/octet-stream",
+                "content-type": content_type,
                 "x-upsert": "true",
             },
         )
