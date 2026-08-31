@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from http.cookies import CookieError, SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from html.parser import HTMLParser
 from pathlib import Path
 
 from src.ai.services.pipeline_service import EditorialPipeline
@@ -58,6 +59,7 @@ from src.domain.visual import (
     public_visual_options,
     visual_direction_prompt,
 )
+from src.domain.manufacturer_sources import ensure_manufacturer_sources
 
 
 ROOT = Path(__file__).resolve().parent
@@ -77,6 +79,10 @@ DB_LOCK = threading.RLock()
 JOB_LOCK = threading.RLock()
 GENERATION_JOBS: dict[str, dict] = {}
 MAX_IMAGE_VARIANTS = 5
+MAX_MANUFACTURER_SOURCE_PAGES = 5
+MAX_MANUFACTURER_PAGE_BYTES = 1_000_000
+MAX_MANUFACTURER_DOCUMENT_CHARS = 250_000
+MANUFACTURER_FETCH_TIMEOUT_SECONDS = 20
 
 GENERATION_STEPS = {
     "editorial": [
@@ -448,6 +454,30 @@ class AppHandler(SimpleHTTPRequestHandler):
 
             if self.command == "POST" and path == "/api/files/sync-openai":
                 self.send_json(sync_files_to_openai(), status=200)
+                return
+
+            if self.command == "POST" and path == "/api/manufacturer-sources/bootstrap":
+                with transaction() as db:
+                    sources = ensure_manufacturer_sources(db)
+                    state = decorate_state(db)
+                self.send_json({"ok": True, "sources": sources, "state": state})
+                return
+
+            manufacturer_match = re.match(r"^/api/manufacturer-sources/([^/]+)$", path)
+            if manufacturer_match and self.command == "PATCH":
+                result = update_manufacturer_source(manufacturer_match.group(1), self.read_json())
+                self.send_json(result)
+                return
+
+            manufacturer_sync_match = re.match(r"^/api/manufacturer-sources/([^/]+)/sync$", path)
+            if manufacturer_sync_match and self.command == "POST":
+                body = self.read_json()
+                result = sync_manufacturer_source(
+                    manufacturer_sync_match.group(1),
+                    include_x=as_bool(body.get("syncX"), False),
+                    include_web=as_bool(body.get("syncWeb"), True),
+                )
+                self.send_json(result)
                 return
 
             file_match = re.match(r"^/api/files/([^/]+)$", path)
@@ -954,6 +984,24 @@ def review_post_image_variant(post_id: str, image_id: str, payload: dict) -> dic
     return {"ok": True, "image": target, "state": state}
 
 
+def brand_treatment_label(with_frame: bool, with_logo: bool) -> str:
+    if with_frame and with_logo:
+        return "frame_logo"
+    if with_frame:
+        return "frame"
+    if with_logo:
+        return "logo"
+    return "clean"
+
+
+def brand_asset_suffix(with_frame: bool, with_logo: bool) -> str:
+    return {
+        "frame_logo": "_frame-logo",
+        "frame": "_frame",
+        "logo": "_logo",
+    }[brand_treatment_label(with_frame, with_logo)]
+
+
 def generate_post_image(post_id: str, config: dict) -> dict:
     db = read_db()
     post = next((item for item in db.get("posts", []) if item.get("id") == post_id), None)
@@ -970,6 +1018,10 @@ def generate_post_image(post_id: str, config: dict) -> dict:
     user_notes = config.get("userNotes") or ""
     size, quality = normalize_image_request(config.get("size") or DEFAULT_SIZE, config.get("quality") or "medium")
     with_frame = as_bool(config.get("withFrame"), True)
+    # Legacy images exposed one switch. Preserve that decision as frame + logo
+    # whenever a stored or API caller does not yet send ``withLogo``.
+    with_logo = as_bool(config.get("withLogo"), with_frame)
+    has_brand_treatment = with_frame or with_logo
     direction, composition = normalize_visual_choice(
         config.get("direction") or DEFAULT_DIRECTION,
         config.get("composition") or DEFAULT_COMPOSITION,
@@ -982,19 +1034,17 @@ def generate_post_image(post_id: str, config: dict) -> dict:
         direction,
         composition,
         user_notes,
-        with_frame=with_frame,
+        with_branding=has_brand_treatment,
     )
     image_prompt = prompt_result["image_prompt"]
     generated_image = ImageService().generate(image_prompt, size=size, quality=quality)
     filename = generated_image.filename
     local_path = IMAGES_DIR / filename
 
-    # If with_frame: compose framed version (blurred strip + chocolate line)
-    # Else: skip composition and upload the raw image
-    if with_frame:
-        upload_path = IMAGES_DIR / f"{Path(filename).stem}_framed.png"
-        compose_branded_frame(local_path, upload_path)
-        public_id_suffix = "_framed"
+    if has_brand_treatment:
+        public_id_suffix = brand_asset_suffix(with_frame, with_logo)
+        upload_path = IMAGES_DIR / f"{Path(filename).stem}{public_id_suffix}.png"
+        compose_branded_frame(local_path, upload_path, with_frame=with_frame, with_logo=with_logo)
     else:
         upload_path = local_path
         public_id_suffix = ""
@@ -1017,11 +1067,11 @@ def generate_post_image(post_id: str, config: dict) -> dict:
                 "publicId": upload_result.get("public_id"),
                 "version": version,
                 "rawUrl": upload_result.get("secure_url"),
-                # The frame composer already embedded the approved logo locally.
-                # Store that exact uploaded asset instead of applying a second,
-                # CDN-dependent overlay transformation.
-                "brandedUrl": upload_result.get("secure_url") if with_frame else None,
+                # The compositor embeds the selected treatment locally. The CDN
+                # only delivers that exact result; it never adds a second overlay.
+                "brandedUrl": upload_result.get("secure_url") if has_brand_treatment else None,
                 "withFrame": with_frame,
+                "withLogo": with_logo,
             }
         except Exception as exc:
             print("Cloudinary upload error:", exc)
@@ -1031,11 +1081,11 @@ def generate_post_image(post_id: str, config: dict) -> dict:
         "id": uid("img"),
         "url": f"/images/{filename}",
         "displayUrl": (
-            cloudinary_data.get("brandedUrl") if cloudinary_data and with_frame
+            cloudinary_data.get("brandedUrl") if cloudinary_data and has_brand_treatment
             else cloudinary_data.get("rawUrl") if cloudinary_data
             else local_display_url
         ),
-        "brandedUrl": cloudinary_data["brandedUrl"] if cloudinary_data else local_display_url if with_frame else None,
+        "brandedUrl": cloudinary_data["brandedUrl"] if cloudinary_data else local_display_url if has_brand_treatment else None,
         "cloudinary": cloudinary_data,
         "prompt": image_prompt,
         "sceneRationale": prompt_result.get("scene_rationale", ""),
@@ -1047,6 +1097,8 @@ def generate_post_image(post_id: str, config: dict) -> dict:
             "quality": quality,
             "userNotes": user_notes,
             "withFrame": with_frame,
+            "withLogo": with_logo,
+            "brandTreatment": brand_treatment_label(with_frame, with_logo),
         },
         "review": {"status": "pending", "reviewedAt": None, "checklistVersion": 1},
         "generatedAt": now,
@@ -1472,8 +1524,11 @@ def generate_blog_figure_image(blog_id: str, figure_id: str, config: dict) -> di
 
     user_notes = config.get("userNotes") or ""
     size, quality = normalize_image_request(config.get("size") or DEFAULT_SIZE, config.get("quality") or default_quality)
-    # Blog images are "sin edicion": no branded frame unless the caller explicitly opts in.
+    # Blog images are clean by default. Editors can independently opt into a
+    # frame, the Nexia logo, or both.
     with_frame = as_bool(config.get("withFrame"), False)
+    with_logo = as_bool(config.get("withLogo"), with_frame)
+    has_brand_treatment = with_frame or with_logo
     direction, composition = normalize_visual_choice(
         config.get("direction") or "territorio_infraestructura",
         config.get("composition") or "contexto_amplio",
@@ -1499,10 +1554,10 @@ def generate_blog_figure_image(blog_id: str, figure_id: str, config: dict) -> di
     # Combine the figure's image_prompt with any user notes; bypass the AI prompt
     # generator since the brief already has a precise image_brief.
     combined_prompt = figure.get("image_prompt", "")
-    combined_prompt += "\n\n" + visual_direction_prompt(direction, composition, with_frame=with_frame)
+    combined_prompt += "\n\n" + visual_direction_prompt(direction, composition, with_frame=has_brand_treatment)
     if user_notes:
         combined_prompt += f"\n\nUser notes: {user_notes}"
-    if with_frame:
+    if has_brand_treatment:
         combined_prompt += (
             "\n\nComposition note: keep the lower-right 18% visually calm and free of key subjects, "
             "signage or high-contrast detail; an exact logo is composited there after generation."
@@ -1512,10 +1567,10 @@ def generate_blog_figure_image(blog_id: str, figure_id: str, config: dict) -> di
     filename = generated_image.filename
     local_path = IMAGES_DIR / filename
 
-    if with_frame:
-        upload_path = IMAGES_DIR / f"{Path(filename).stem}_framed.png"
-        compose_branded_frame(local_path, upload_path)
-        public_id_suffix = "_framed"
+    if has_brand_treatment:
+        public_id_suffix = brand_asset_suffix(with_frame, with_logo)
+        upload_path = IMAGES_DIR / f"{Path(filename).stem}{public_id_suffix}.png"
+        compose_branded_frame(local_path, upload_path, with_frame=with_frame, with_logo=with_logo)
     else:
         upload_path = local_path
         public_id_suffix = ""
@@ -1536,8 +1591,9 @@ def generate_blog_figure_image(blog_id: str, figure_id: str, config: dict) -> di
                 "publicId": upload_result.get("public_id"),
                 "version": version,
                 "rawUrl": upload_result.get("secure_url"),
-                "brandedUrl": upload_result.get("secure_url") if with_frame else None,
+                "brandedUrl": upload_result.get("secure_url") if has_brand_treatment else None,
                 "withFrame": with_frame,
+                "withLogo": with_logo,
             }
         except Exception as exc:
             print("Cloudinary upload error (blog figure):", exc)
@@ -1546,13 +1602,13 @@ def generate_blog_figure_image(blog_id: str, figure_id: str, config: dict) -> di
     # The local frame already carries the approved logo. Cloudinary is delivery-only,
     # never a dependency for applying brand artwork.
     if cloudinary_data:
-        display_url = (cloudinary_data.get("brandedUrl") if with_frame else cloudinary_data.get("rawUrl")) or local_display_url
+        display_url = (cloudinary_data.get("brandedUrl") if has_brand_treatment else cloudinary_data.get("rawUrl")) or local_display_url
     else:
         display_url = local_display_url
     image_obj = {
         "url": f"/images/{filename}",
         "displayUrl": display_url,
-        "brandedUrl": (cloudinary_data or {}).get("brandedUrl") or (local_display_url if with_frame else None),
+        "brandedUrl": (cloudinary_data or {}).get("brandedUrl") or (local_display_url if has_brand_treatment else None),
         "cloudinary": cloudinary_data,
         "prompt": combined_prompt,
         "config": {
@@ -1563,6 +1619,8 @@ def generate_blog_figure_image(blog_id: str, figure_id: str, config: dict) -> di
             "quality": quality,
             "userNotes": user_notes,
             "withFrame": with_frame,
+            "withLogo": with_logo,
+            "brandTreatment": brand_treatment_label(with_frame, with_logo),
         },
         "generatedAt": now,
         "sizeBytes": generated_image.size_bytes,
@@ -1810,6 +1868,16 @@ def sync_files_to_openai() -> dict:
     synced = []
     errors = []
     for item in db.get("files", []):
+        # A refreshed manufacturer document keeps one logical source file. Its
+        # previous vector-store attachment is removed only when the editor
+        # explicitly runs this synchronisation, then the current contents are
+        # uploaded in its place.
+        if item.get("needsVectorRefresh"):
+            delete_remote_file_if_possible(item)
+            item["openaiFileId"] = None
+            item["vectorStoreFileId"] = None
+            item["vectorStoreId"] = db["settings"].get("vectorStoreId", "")
+            item["needsVectorRefresh"] = False
         if item.get("openaiFileId"):
             if item.get("vectorStoreId") and item.get("vectorStoreFileId") and item.get("status") not in {"completed", "failed", "cancelled"}:
                 try:
@@ -1944,6 +2012,427 @@ def register_file(
     return item
 
 
+class ManufacturerPageParser(HTMLParser):
+    """Small dependency-free extractor for the public text of official sites."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.title_parts: list[str] = []
+        self.text_parts: list[str] = []
+        self.links: list[str] = []
+        self._skip_depth = 0
+        self._in_title = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        tag = tag.lower()
+        if tag in {"script", "style", "noscript", "svg", "template"}:
+            self._skip_depth += 1
+            return
+        if tag == "title":
+            self._in_title = True
+        if tag == "a":
+            href = dict(attrs).get("href")
+            if href:
+                self.links.append(href)
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.lower()
+        if tag in {"script", "style", "noscript", "svg", "template"} and self._skip_depth:
+            self._skip_depth -= 1
+        if tag == "title":
+            self._in_title = False
+
+    def handle_data(self, data: str) -> None:
+        if self._skip_depth:
+            return
+        normalized = " ".join(data.split())
+        if not normalized:
+            return
+        if self._in_title:
+            self.title_parts.append(normalized)
+        self.text_parts.append(normalized)
+
+
+def _normalise_https_url(value: str) -> str | None:
+    parsed = urllib.parse.urlsplit(str(value or "").strip())
+    if parsed.scheme.lower() != "https" or not parsed.hostname:
+        return None
+    if parsed.username or parsed.password or parsed.port not in (None, 443):
+        return None
+    clean = parsed._replace(fragment="")
+    return urllib.parse.urlunsplit(clean)
+
+
+def _same_manufacturer_site(candidate: str, root_url: str) -> bool:
+    candidate_url = _normalise_https_url(candidate)
+    root = urllib.parse.urlsplit(root_url)
+    parsed = urllib.parse.urlsplit(candidate_url or "")
+    if not candidate_url or not parsed.hostname or not root.hostname:
+        return False
+    def without_www(host: str) -> str:
+        return host.lower().removeprefix("www.")
+    return without_www(parsed.hostname) == without_www(root.hostname)
+
+
+def _manufacturer_social_link(value: str) -> dict | None:
+    parsed = urllib.parse.urlsplit(value)
+    host = (parsed.hostname or "").lower().removeprefix("www.")
+    if host in {"x.com", "twitter.com"}:
+        parts = [part for part in parsed.path.split("/") if part]
+        handle = parts[0].lstrip("@") if parts else ""
+        if handle.lower() in {"home", "search", "share", "intent", "i"}:
+            handle = ""
+        return {"network": "x", "url": value, "candidateHandle": handle[:30]}
+    if host in {"instagram.com"}:
+        return {"network": "instagram", "url": value}
+    if host in {"linkedin.com", "es.linkedin.com"}:
+        return {"network": "linkedin", "url": value}
+    return None
+
+
+def _fetch_manufacturer_page(url: str, root_url: str) -> dict:
+    safe_url = _normalise_https_url(url)
+    if not safe_url or not _same_manufacturer_site(safe_url, root_url):
+        raise ApiError("La URL del fabricante no es una página HTTPS del dominio verificado.", 400)
+    request = urllib.request.Request(
+        safe_url,
+        headers={
+            "user-agent": "NexiaGP-Content-Research/1.0 (+https://nexiagp.com)",
+            "accept": "text/html,application/xhtml+xml",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=MANUFACTURER_FETCH_TIMEOUT_SECONDS) as response:
+            final_url = _normalise_https_url(response.geturl())
+            if not final_url or not _same_manufacturer_site(final_url, root_url):
+                raise ApiError("La web redirigió fuera del dominio verificado.", 400)
+            content_type = response.headers.get_content_type()
+            if content_type not in {"text/html", "application/xhtml+xml"}:
+                raise ApiError("La URL no devolvió una página HTML pública.", 415)
+            raw = response.read(MAX_MANUFACTURER_PAGE_BYTES + 1)
+            if len(raw) > MAX_MANUFACTURER_PAGE_BYTES:
+                raise ApiError("La página supera el límite seguro de lectura.", 413)
+            charset = response.headers.get_content_charset() or "utf-8"
+    except urllib.error.HTTPError as exc:
+        raise ApiError(f"La web respondió HTTP {exc.code}.", 502) from exc
+    except urllib.error.URLError as exc:
+        raise ApiError("No se pudo conectar con la web del fabricante.", 502) from exc
+    except TimeoutError as exc:
+        raise ApiError("La web del fabricante agotó el tiempo de espera.", 504) from exc
+
+    try:
+        document = raw.decode(charset, errors="replace")
+    except LookupError:
+        document = raw.decode("utf-8", errors="replace")
+    parser = ManufacturerPageParser()
+    parser.feed(document)
+    parser.close()
+    text = "\n".join(parser.text_parts)
+    text = re.sub(r"(?:\s*\n){3,}", "\n\n", text).strip()
+    return {
+        "url": final_url,
+        "title": " ".join(parser.title_parts).strip()[:500],
+        "text": text[:MAX_MANUFACTURER_DOCUMENT_CHARS],
+        "links": parser.links,
+    }
+
+
+def _candidate_manufacturer_pages(page: dict, root_url: str) -> list[str]:
+    priority = (
+        "noticias", "news", "actualidad", "blog", "productos", "products",
+        "catalogo", "catalog", "soluciones", "solutions", "empresa", "about",
+        "quienes-somos", "sostenibilidad", "innovation",
+    )
+    candidates: list[str] = []
+    seen: set[str] = {page["url"]}
+    for href in page.get("links", []):
+        candidate = _normalise_https_url(urllib.parse.urljoin(page["url"], href))
+        if not candidate or candidate in seen or not _same_manufacturer_site(candidate, root_url):
+            continue
+        path = urllib.parse.urlsplit(candidate).path.lower()
+        if not any(term in path for term in priority):
+            continue
+        if Path(path).suffix.lower() in {".pdf", ".zip", ".jpg", ".jpeg", ".png", ".webp"}:
+            continue
+        seen.add(candidate)
+        candidates.append(candidate)
+    return candidates[: MAX_MANUFACTURER_SOURCE_PAGES - 1]
+
+
+def crawl_manufacturer_website(source: dict) -> dict:
+    """Fetch the home page plus a bounded set of relevant official sections."""
+    root_url = source.get("website", {}).get("url", "")
+    try:
+        root_page = _fetch_manufacturer_page(root_url, root_url)
+    except ApiError as original_error:
+        root_page = None
+        for fallback_url in source.get("website", {}).get("fallbackUrls", []):
+            try:
+                root_page = _fetch_manufacturer_page(fallback_url, root_url)
+                break
+            except ApiError:
+                continue
+        if root_page is None:
+            raise original_error
+    pages = [root_page]
+    for candidate in _candidate_manufacturer_pages(root_page, root_url):
+        try:
+            pages.append(_fetch_manufacturer_page(candidate, root_url))
+        except ApiError:
+            # A broken section should not discard useful information recovered
+            # from the official landing page.
+            continue
+    socials: list[dict] = []
+    seen_social_urls: set[str] = set()
+    for page in pages:
+        for href in page.get("links", []):
+            absolute = _normalise_https_url(urllib.parse.urljoin(page["url"], href))
+            social = _manufacturer_social_link(absolute or "")
+            if social and social["url"] not in seen_social_urls:
+                seen_social_urls.add(social["url"])
+                socials.append(social)
+    return {"pages": pages, "socials": socials}
+
+
+def manufacturer_web_document(source: dict, crawl: dict) -> bytes:
+    sections = [
+        f"# Fuente oficial de fabricante: {source['name']}",
+        "",
+        f"Sector: {source.get('sector', '')}",
+        f"Web oficial: {source.get('website', {}).get('url', '')}",
+        f"Actualizada por Nexia GP: {now_iso()}",
+        "",
+        "Esta fuente contiene texto público extraído de la web oficial. Requiere revisión editorial antes de atribuir afirmaciones, novedades o especificaciones.",
+    ]
+    for page in crawl["pages"]:
+        sections.extend([
+            "",
+            f"## {page.get('title') or page['url']}",
+            f"URL: {page['url']}",
+            "",
+            page.get("text") or "(Sin texto público extraíble)",
+        ])
+    return "\n".join(sections)[:MAX_MANUFACTURER_DOCUMENT_CHARS].encode("utf-8")
+
+
+def _write_registered_source_bytes(item: dict, buffer: bytes, mime_type: str) -> None:
+    location = str(item.get("localPath") or "")
+    prefix = "supabase://source-library/"
+    if location.startswith(prefix):
+        if not SUPABASE_STORE.enabled:
+            raise OSError("El almacenamiento gestionado no está configurado")
+        SUPABASE_STORE.upload_object("source-library", location[len(prefix):], buffer, mime_type)
+        return
+    path = Path(location)
+    if not path or not is_path_within(path, UPLOAD_DIR):
+        raise OSError("La fuente existente no pertenece a la biblioteca gestionada")
+    path.write_bytes(buffer)
+
+
+def upsert_manufacturer_document(db: dict, source: dict, *, kind: str, buffer: bytes) -> dict:
+    file_source = "manufacturer_web" if kind == "web" else "manufacturer_x"
+    existing = next(
+        (
+            item for item in db.get("files", [])
+            if item.get("manufacturerSourceId") == source["id"] and item.get("manufacturerSourceKind") == kind
+        ),
+        None,
+    )
+    filename = f"fabricante-{source['id']}-{kind}.md"
+    if existing is None:
+        existing = register_file(
+            db,
+            file_name=filename,
+            mime_type="text/markdown; charset=utf-8",
+            buffer=buffer,
+            category="fabricante",
+            source=file_source,
+            sync_remote=False,
+        )
+        existing["manufacturerSourceId"] = source["id"]
+        existing["manufacturerSourceKind"] = kind
+    else:
+        _write_registered_source_bytes(existing, buffer, "text/markdown; charset=utf-8")
+        existing["name"] = filename
+        existing["size"] = len(buffer)
+        existing["status"] = "local_only"
+        existing["error"] = None
+        existing["updatedAt"] = now_iso()
+        if existing.get("openaiFileId") or existing.get("vectorStoreFileId"):
+            existing["needsVectorRefresh"] = True
+    return existing
+
+
+def _find_manufacturer_source(db: dict, source_id: str) -> dict:
+    ensure_manufacturer_sources(db)
+    source = next((item for item in db["manufacturerSources"] if item.get("id") == source_id), None)
+    if source is None:
+        raise ApiError("Fabricante no encontrado", 404)
+    return source
+
+
+def update_manufacturer_source(source_id: str, payload: dict) -> dict:
+    with transaction() as db:
+        source = _find_manufacturer_source(db, source_id)
+        website = source.setdefault("website", {})
+        x_source = source.setdefault("social", {}).setdefault("x", {})
+        if "websiteEnabled" in payload:
+            website["enabled"] = as_bool(payload.get("websiteEnabled"), True)
+        if "xEnabled" in payload:
+            x_source["enabled"] = as_bool(payload.get("xEnabled"), False)
+        if "xHandle" in payload:
+            handle = str(payload.get("xHandle") or "").strip().lstrip("@")
+            if handle and not re.fullmatch(r"[A-Za-z0-9_]{1,30}", handle):
+                raise ApiError("El usuario de X solo puede contener letras, números o guion bajo.", 400)
+            x_source["handle"] = handle
+            x_source["status"] = "pending" if handle else "needs_handle"
+        if x_source.get("enabled") and not os.getenv("X_API_BEARER_TOKEN"):
+            x_source["status"] = "needs_credentials"
+        state = decorate_state(db)
+    return {"ok": True, "source": source, "state": state}
+
+
+def _x_api_json(url: str, bearer_token: str) -> dict:
+    request = urllib.request.Request(
+        url,
+        headers={
+            "authorization": f"Bearer {bearer_token}",
+            "accept": "application/json",
+            "user-agent": "NexiaGP-Content-Research/1.0",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=MANUFACTURER_FETCH_TIMEOUT_SECONDS) as response:
+            return json.loads(response.read(MAX_MANUFACTURER_PAGE_BYTES).decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise ApiError(f"X API respondió HTTP {exc.code}.", 502) from exc
+    except (urllib.error.URLError, TimeoutError) as exc:
+        raise ApiError("No se pudo conectar con X API.", 502) from exc
+
+
+def fetch_x_posts(x_source: dict) -> list[dict]:
+    token = os.getenv("X_API_BEARER_TOKEN")
+    if not token:
+        raise ApiError("Falta X_API_BEARER_TOKEN para consultar X.", 400)
+    handle = str(x_source.get("handle") or "").strip().lstrip("@")
+    if not re.fullmatch(r"[A-Za-z0-9_]{1,30}", handle):
+        raise ApiError("Confirma un usuario válido de X antes de activar la consulta.", 400)
+    user_data = _x_api_json(
+        f"https://api.x.com/2/users/by/username/{urllib.parse.quote(handle)}",
+        token,
+    )
+    user_id = (user_data.get("data") or {}).get("id")
+    if not user_id:
+        raise ApiError("X no devolvió un perfil para el usuario configurado.", 404)
+    query = urllib.parse.urlencode({
+        "max_results": 10,
+        "exclude": "retweets,replies",
+        "tweet.fields": "created_at,entities,public_metrics",
+    })
+    response = _x_api_json(f"https://api.x.com/2/users/{urllib.parse.quote(user_id)}/tweets?{query}", token)
+    return [item for item in response.get("data", []) if isinstance(item, dict)]
+
+
+def manufacturer_x_document(source: dict, handle: str, posts: list[dict]) -> bytes:
+    lines = [
+        f"# Publicaciones oficiales de X: {source['name']}",
+        "",
+        f"Cuenta confirmada: @{handle}",
+        f"Consulta realizada por Nexia GP: {now_iso()}",
+        "",
+        "Contenido público recuperado mediante X API oficial. Requiere revisión editorial antes de reutilizarlo.",
+    ]
+    for post in posts:
+        lines.extend([
+            "",
+            f"## Publicación {post.get('id', '')}",
+            f"Fecha: {post.get('created_at', '')}",
+            f"Enlace: https://x.com/{handle}/status/{post.get('id', '')}",
+            "",
+            str(post.get("text") or ""),
+        ])
+    return "\n".join(lines).encode("utf-8")
+
+
+def sync_manufacturer_source(source_id: str, *, include_x: bool, include_web: bool = True) -> dict:
+    """Refresh one official web source and, only when configured, its X feed."""
+    snapshot = read_db()
+    source = _find_manufacturer_source(snapshot, source_id)
+    website_enabled = as_bool(source.get("website", {}).get("enabled"), True)
+    x_source = source.get("social", {}).get("x", {})
+    crawl: dict | None = None
+    web_error: str | None = None
+    if include_web and website_enabled:
+        try:
+            crawl = crawl_manufacturer_website(source)
+        except ApiError as exc:
+            web_error = exc.message
+
+    x_posts: list[dict] | None = None
+    x_error: str | None = None
+    if include_x and as_bool(x_source.get("enabled"), False):
+        try:
+            x_posts = fetch_x_posts(x_source)
+        except ApiError as exc:
+            x_error = exc.message
+
+    with transaction() as db:
+        fresh_source = _find_manufacturer_source(db, source_id)
+        fresh_website = fresh_source.setdefault("website", {})
+        if crawl is not None:
+            document = upsert_manufacturer_document(
+                db, fresh_source, kind="web", buffer=manufacturer_web_document(fresh_source, crawl)
+            )
+            fresh_website.update({
+                "lastStatus": "updated",
+                "lastSyncAt": now_iso(),
+                "lastError": None,
+                "pages": len(crawl["pages"]),
+                "documentId": document["id"],
+            })
+            fresh_source["discoveredSocials"] = crawl["socials"]
+            candidate = next(
+                (item.get("candidateHandle") for item in crawl["socials"] if item.get("network") == "x" and item.get("candidateHandle")),
+                "",
+            )
+            fresh_x = fresh_source.setdefault("social", {}).setdefault("x", {})
+            if candidate and not fresh_x.get("handle"):
+                fresh_x["candidateHandle"] = candidate
+        elif include_web and website_enabled:
+            fresh_website.update({"lastStatus": "error", "lastSyncAt": now_iso(), "lastError": (web_error or "No se pudo actualizar la web.")[:300]})
+
+        fresh_x = fresh_source.setdefault("social", {}).setdefault("x", {})
+        x_result = {"requested": include_x, "updated": False, "newPosts": 0}
+        if include_x and not fresh_x.get("enabled"):
+            x_result["reason"] = "X permanece desactivado para este fabricante."
+        elif include_x and x_posts is not None:
+            seen = {str(value) for value in fresh_x.get("seenPostIds", [])}
+            new_posts = [post for post in x_posts if str(post.get("id")) not in seen]
+            if new_posts:
+                upsert_manufacturer_document(
+                    db,
+                    fresh_source,
+                    kind="x",
+                    buffer=manufacturer_x_document(fresh_source, str(fresh_x.get("handle") or ""), new_posts),
+                )
+            fresh_x.update({
+                "status": "updated",
+                "lastSyncAt": now_iso(),
+                "lastError": None,
+                "seenPostIds": ([str(post.get("id")) for post in x_posts] + list(seen))[:100],
+            })
+            x_result.update({"updated": True, "newPosts": len(new_posts)})
+        elif include_x and fresh_x.get("enabled"):
+            fresh_x.update({
+                "status": "error" if x_error else "needs_credentials",
+                "lastSyncAt": now_iso(),
+                "lastError": (x_error or "Falta configurar X_API_BEARER_TOKEN.")[:300],
+            })
+            x_result["reason"] = fresh_x["lastError"]
+        state = decorate_state(db)
+    return {"ok": True, "source": fresh_source, "website": {"updated": crawl is not None, "error": web_error}, "x": x_result, "state": state}
+
+
 def ensure_vector_store(db: dict) -> str:
     if db["settings"].get("vectorStoreId"):
         return db["settings"]["vectorStoreId"]
@@ -2007,6 +2496,25 @@ def delete_remote_file_if_possible(file_item: dict) -> None:
             pass
 
 
+def next_scheduled_theme(db: dict) -> tuple[dict | None, int]:
+    """Choose one active theme in stable round-robin order.
+
+    A single post per run keeps a three-day cadence genuinely varied instead
+    of recreating the same first few topics as a batch. The cursor is advanced
+    after every attempted automatic/manual run, including an error, so one
+    problematic topic cannot stall the editorial calendar.
+    """
+    active_themes = [theme for theme in db.get("themes", []) if theme.get("active", True)]
+    if not active_themes:
+        return None, 0
+    try:
+        cursor = max(0, int(db.get("settings", {}).get("schedulerThemeCursor") or 0))
+    except (TypeError, ValueError):
+        cursor = 0
+    index = cursor % len(active_themes)
+    return active_themes[index], (index + 1) % len(active_themes)
+
+
 def run_scheduler(force: bool, source: str) -> dict:
     db = read_db()
     cadence_days = clamp(int(db["settings"].get("cadenceDays") or 3), 1, 30)
@@ -2018,38 +2526,48 @@ def run_scheduler(force: bool, source: str) -> dict:
     if not force and (not db["settings"].get("schedulerEnabled", True) or time.time() - last_ts < cadence_days * 86400):
         return {"ok": True, "skipped": True, "reason": "No toca generar todavia", "state": decorate_state(db)}
 
-    active_themes = [theme for theme in db["themes"] if theme.get("active", True)][:3]
+    selected_theme, next_theme_cursor = next_scheduled_theme(db)
+    if selected_theme is None:
+        return {
+            "ok": True,
+            "skipped": True,
+            "reason": "No hay temáticas activas para alternar",
+            "state": decorate_state(db),
+        }
     post_type_id = db["settings"].get("defaultPostTypeId") or db["postTypes"][0]["id"]
     generated = []
     errors = []
     pipeline = EditorialPipeline(model=db.get("settings", {}).get("model"))
-    for theme in active_themes:
-        try:
-            request = {
-                "canal": "linkedin",
-                "tipo_post": theme.get("id") if theme.get("id") in POST_TYPES and theme.get("id") != "auto" else post_type_id,
-                "objetivo": "autoridad",
-                "audiencia_principal": "mixta",
-                "sector": ", ".join(theme.get("pillars", [])[:2]),
-                "marca_o_entidad": "Nexia GP",
-                "tema_libre": theme.get("description", ""),
-                "cta_preferida": "comentario",
-                "usar_enlace": False,
-                "nivel_promocional": "bajo",
-                "necesita_adaptacion_multicanal": True,
-                "notas_humanas": "Generacion automatica por cadencia editorial. Evitar repetir ideas usadas.",
-            }
-            result = pipeline.run(request, db)
-            post = result["post"]
-            if db["settings"].get("publishMode") == "ready" and not has_unacknowledged_quality_gate(post):
-                post["status"] = "ready"
-            elif db["settings"].get("publishMode") == "auto" and not has_unacknowledged_quality_gate(post):
-                publish_post(db, post)
-            elif db["settings"].get("publishMode") in {"ready", "auto"}:
-                post["schedulerReviewReason"] = "La puerta de calidad mantuvo el post en borrador."
-            generated.append(post)
-        except Exception as exc:
-            errors.append({"themeId": theme["id"], "error": str(exc)})
+    try:
+        request = {
+            "canal": "linkedin",
+            "tipo_post": selected_theme.get("id") if selected_theme.get("id") in POST_TYPES and selected_theme.get("id") != "auto" else post_type_id,
+            "objetivo": "autoridad",
+            "audiencia_principal": "mixta",
+            "sector": ", ".join(selected_theme.get("pillars", [])[:2]),
+            "marca_o_entidad": "Nexia GP",
+            "tema_libre": selected_theme.get("description", ""),
+            "cta_preferida": "comentario",
+            "usar_enlace": False,
+            "nivel_promocional": "bajo",
+            "necesita_adaptacion_multicanal": True,
+            "notas_humanas": "Generación automática por cadencia editorial y rotación de temáticas. Evitar repetir ideas usadas.",
+        }
+        result = pipeline.run(request, db)
+        post = result["post"]
+        # The scheduler never spends image-generation credits by itself, but
+        # its draft declares the approved default for the first visual an
+        # editor requests: Nexia frame plus logo.
+        post["imageDefaults"] = {"withFrame": True, "withLogo": True}
+        if db["settings"].get("publishMode") == "ready" and not has_unacknowledged_quality_gate(post):
+            post["status"] = "ready"
+        elif db["settings"].get("publishMode") == "auto" and not has_unacknowledged_quality_gate(post):
+            publish_post(db, post)
+        elif db["settings"].get("publishMode") in {"ready", "auto"}:
+            post["schedulerReviewReason"] = "La puerta de calidad mantuvo el post en borrador."
+        generated.append(post)
+    except Exception as exc:
+        errors.append({"themeId": selected_theme["id"], "error": str(exc)})
 
     with transaction() as fresh:  # persistencia atomica de toda la tanda del scheduler
         for post in generated:
@@ -2058,6 +2576,7 @@ def run_scheduler(force: bool, source: str) -> dict:
             record_usage(fresh, post.get("usage"))
         run_at = now_iso()
         fresh["settings"]["lastSchedulerRun"] = run_at
+        fresh["settings"]["schedulerThemeCursor"] = next_theme_cursor
         fresh["schedulerLog"] = ([
             {
                 "id": uid("run"),
@@ -2065,6 +2584,7 @@ def run_scheduler(force: bool, source: str) -> dict:
                 "source": source,
                 "generated": len(generated),
                 "errors": errors,
+                "themeId": selected_theme["id"],
             }
         ] + fresh.get("schedulerLog", []))[:50]
         state = decorate_state(fresh)
@@ -2080,6 +2600,35 @@ def scheduler_loop() -> None:
             print("Scheduler error:", exc)
 
 
+def sync_enabled_manufacturer_x_sources() -> dict:
+    """Daily, opt-in polling for confirmed X accounts only.
+
+    The Vercel cron is short lived, so it polls recent posts instead of keeping
+    a stream connection open. No network call is made until an editor enables a
+    source, confirms its handle, and a private API token is configured.
+    """
+    if not os.getenv("X_API_BEARER_TOKEN"):
+        return {"checked": 0, "updated": 0, "skipped": "X_API_BEARER_TOKEN no configurado"}
+    snapshot = read_db()
+    sources = ensure_manufacturer_sources(snapshot)
+    source_ids = [
+        source["id"]
+        for source in sources
+        if as_bool(source.get("social", {}).get("x", {}).get("enabled"), False)
+        and str(source.get("social", {}).get("x", {}).get("handle") or "").strip()
+    ][:10]
+    updated = 0
+    errors: list[dict] = []
+    for source_id in source_ids:
+        try:
+            result = sync_manufacturer_source(source_id, include_x=True, include_web=False)
+            if result.get("x", {}).get("updated"):
+                updated += 1
+        except Exception as exc:
+            errors.append({"sourceId": source_id, "error": str(exc)[:300]})
+    return {"checked": len(source_ids), "updated": updated, "errors": errors}
+
+
 def run_daily_maintenance() -> dict:
     """Run the work that Vercel Hobby can guarantee: one daily invocation.
 
@@ -2088,10 +2637,11 @@ def run_daily_maintenance() -> dict:
     replaces the local scheduler thread once the app runs on Vercel.
     """
     scheduler = run_scheduler(force=False, source="vercel-daily")
+    manufacturer_x = sync_enabled_manufacturer_x_sources()
     recovered_job = None
     if scheduler.get("skipped"):
         recovered_job = process_one_remote_generation_job()
-    return {"scheduler": scheduler, "recoveredJob": recovered_job}
+    return {"scheduler": scheduler, "manufacturerX": manufacturer_x, "recoveredJob": recovered_job}
 
 
 def publish_post(db: dict, post: dict, *, require_webhook: bool = False) -> None:
@@ -2470,6 +3020,16 @@ def decorate_state(db: dict) -> dict:
     counts["blogsPublished"] = sum(1 for b in blogs if b.get("status") == "published")
     settings = dict(db.get("settings", {}))
     settings["blog"] = normalize_blog_settings(dict(settings.get("blog") or {}))
+    next_theme, _next_cursor = next_scheduled_theme(db)
+    settings["schedulerNextThemeId"] = next_theme.get("id") if next_theme else None
+    settings["schedulerNextThemeTitle"] = next_theme.get("title") if next_theme else None
+    manufacturer_sources = json.loads(json.dumps(ensure_manufacturer_sources(db), ensure_ascii=False))
+    for source in manufacturer_sources:
+        x_source = source.get("social", {}).get("x", {})
+        # The token itself never leaves the server; the UI only needs to know
+        # whether the official X API connection can be completed.
+        x_source["credentialsConfigured"] = bool(os.getenv("X_API_BEARER_TOKEN"))
+        x_source.pop("seenPostIds", None)
     return {
         "ok": True,
         "hasOpenAIKey": bool(os.getenv("OPENAI_API_KEY")),
@@ -2479,6 +3039,7 @@ def decorate_state(db: dict) -> dict:
         "themes": db.get("themes", []),
         "postTypes": db.get("postTypes", []),
         "files": files,
+        "manufacturerSources": manufacturer_sources,
         "posts": posts,
         "blogs": blogs,
         "schedulerLog": db.get("schedulerLog", []),

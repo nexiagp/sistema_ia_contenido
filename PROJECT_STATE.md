@@ -1,5 +1,19 @@
 # Nexia GP Content AI — Estado de continuidad
 
+## Actualización vigente — 31/08/2026
+
+- **Fuentes de fabricantes:** se han extraído 21 webs oficiales, registrado sus documentos y
+  sincronizado con la Vector Store del entorno local (67 documentos completados en total).
+- **Automatización:** scheduler activado, una pieza cada tres días y rotación circular de las
+  temáticas activas. Mantiene el modo `draft`, sin publicación autónoma.
+- **Imagen de posts:** marco y logo Nexia quedan seleccionados como acabado inicial; el editor
+  puede quitarlos o combinarlos por separado en cada propuesta.
+- **X:** preparado para monitorización diaria opt-in mediante `X_API_BEARER_TOKEN`; no hay cuentas
+  ni llamadas activas todavía. Instagram y LinkedIn siguen con revisión manual.
+- **Referencia completa:** [Estado y hoja de ruta](docs/ESTADO_Y_HOJA_DE_RUTA_2026-08-31.md),
+  incluidos el estado, flujo, procedimiento y tareas pendientes. Antes de producción, desplegar
+  código y sembrar las fuentes en el estado persistente de Supabase.
+
 **Fecha de referencia: 2026-08-24**
 
 La referencia operativa vigente es [Arquitectura y operación](docs/ARQUITECTURA_Y_OPERACION.md) y

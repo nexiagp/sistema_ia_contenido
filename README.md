@@ -9,6 +9,7 @@ Aplicación editorial de Nexia Growth Partner para crear, revisar, ilustrar y pl
 
 - **Para utilizar la aplicación:** [Guía completa de uso](docs/GUIA_DE_USO.md).
 - **Para operar, mantener o desplegar:** [Arquitectura y operación](docs/ARQUITECTURA_Y_OPERACION.md).
+- **Para las fuentes de fabricantes y el plan de continuidad:** [Estado y hoja de ruta (31/08/2026)](docs/ESTADO_Y_HOJA_DE_RUTA_2026-08-31.md).
 - **Para retomar el desarrollo:** [Estado del proyecto](PROJECT_STATE.md) y [changelog](CHANGELOG.md).
 
 La URL de producción es de acceso directo por decisión operativa actual. Quien tenga el enlace puede acceder, por lo que sólo debe compartirse con el equipo autorizado para trabajar sobre el contenido.
@@ -17,7 +18,7 @@ La URL de producción es de acceso directo por decisión operativa actual. Quien
 
 - Crear borradores de posts para LinkedIn y sus adaptaciones para X y Facebook, a partir de una pauta editorial, fuentes y prompts versionados.
 - Revisar, editar, copiar, exportar y aprobar las piezas antes de llevarlas al calendario editorial.
-- Generar y comparar imágenes de post; descargar el PNG original o con marco de marca.
+- Generar y comparar imágenes de post; aplicar marco y logo Nexia por separado y descargar el PNG final elegido.
 - Crear artículos de blog con HTML, SEO, JSON-LD, fuentes, figuras y vista previa editorial.
 - Cargar y sincronizar documentos en la biblioteca de fuentes para alimentar el contexto de generación.
 - Gestionar calendario, cadencia, automatización de borradores, tipos de contenido, prompts y límites operativos.

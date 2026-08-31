@@ -400,10 +400,11 @@ function bindEvents() {
         const composition = panel?.querySelector(".img-composition")?.value || "contexto_amplio";
         const userNotes = panel?.querySelector(".img-notes")?.value || "";
         const withFrame = panel?.querySelector(".img-frame")?.checked ?? true;
+        const withLogo = panel?.querySelector(".img-logo")?.checked ?? withFrame;
         await withLoading(action, () =>
           api(`/api/posts/${postId}/generate-image`, {
             method: "POST",
-            body: JSON.stringify({ size, quality, direction, composition, userNotes, withFrame }),
+            body: JSON.stringify({ size, quality, direction, composition, userNotes, withFrame, withLogo }),
           }),
         );
         await loadState("Concepto visual generado");
@@ -462,6 +463,30 @@ function bindEvents() {
       if (name === "sync-openai") {
         await withLoading(action, () => api("/api/files/sync-openai", { method: "POST" }));
         await loadState("Biblioteca sincronizada");
+      }
+
+      if (name === "manufacturer-web-sync" || name === "manufacturer-x-sync") {
+        const includeX = name === "manufacturer-x-sync";
+        await withLoading(action, () =>
+          api(`/api/manufacturer-sources/${encodeURIComponent(action.dataset.id)}/sync`, {
+            method: "POST",
+            body: JSON.stringify({ syncX: includeX, syncWeb: !includeX }),
+          }),
+        );
+        await loadState(includeX ? "Consulta de X terminada" : "Web del fabricante actualizada");
+        return;
+      }
+
+      if (name === "manufacturer-website-toggle") {
+        const enabled = action.dataset.enabled !== "true";
+        await withLoading(action, () =>
+          api(`/api/manufacturer-sources/${encodeURIComponent(action.dataset.id)}`, {
+            method: "PATCH",
+            body: JSON.stringify({ websiteEnabled: enabled }),
+          }),
+        );
+        await loadState(enabled ? "Fuente web activada" : "Fuente web pausada");
+        return;
       }
 
       if (name === "blogs-filter") {
@@ -555,12 +580,13 @@ function bindEvents() {
         const quality = panel?.querySelector(".fig-quality")?.value || "medium";
         const direction = panel?.querySelector(".fig-direction")?.value || "territorio_infraestructura";
         const composition = panel?.querySelector(".fig-composition")?.value || "contexto_amplio";
-        const withFrame = panel?.querySelector(".fig-frame")?.checked ?? true;
+        const withFrame = panel?.querySelector(".fig-frame")?.checked ?? false;
+        const withLogo = panel?.querySelector(".fig-logo")?.checked ?? withFrame;
         const userNotes = panel?.querySelector(".fig-notes")?.value || "";
         await withLoading(action, () =>
           api(`/api/blogs/${blogId}/figures/${figId}/generate-image`, {
             method: "POST",
-            body: JSON.stringify({ size, quality, direction, composition, withFrame, userNotes }),
+            body: JSON.stringify({ size, quality, direction, composition, withFrame, withLogo, userNotes }),
           }),
         );
         await loadState("Imagen generada");
@@ -743,6 +769,21 @@ function bindEvents() {
         );
         form.reset();
         await loadState("Archivo subido");
+      }
+
+      if (form.classList.contains("manufacturer-source-form")) {
+        const data = new FormData(form);
+        await withLoading(form.querySelector("button[type='submit']"), () =>
+          api(`/api/manufacturer-sources/${encodeURIComponent(form.dataset.id)}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              xHandle: data.get("xHandle") || "",
+              xEnabled: data.get("xEnabled") === "on",
+            }),
+          }),
+        );
+        await loadState("Configuración del fabricante guardada");
+        return;
       }
 
       if (form.id === "automationForm" || form.id === "settingsForm") {
@@ -1836,7 +1877,7 @@ function figureCard(blogId, figure) {
     <article class="figure-card">
       <header>
         <div><p class="eyebrow">Imagen ${escapeHtml(figure.figure_id)}</p><strong>Sección ${escapeHtml(String(figure.section_index))}</strong></div>
-        ${hasImage ? badge(figure.image.config?.withFrame ? "Con marco" : "Generada", "published") : badge("Pendiente", "draft")}
+        ${hasImage ? badge(brandTreatmentLabel(figure.image), "published") : badge("Pendiente", "draft")}
       </header>
       ${hasImage ? `<button class="figure-thumb-button" type="button" data-action="blog-figure-preview" data-blog="${escapeAttr(blogId)}" data-fig="${id}" aria-label="Ampliar ${escapeAttr(figureTitle)}"><img class="figure-thumb" src="${escapeAttr(displayUrl)}" alt="${escapeAttr(figureTitle)}" loading="lazy" /><span>${iconSvg("expand")}Ampliar</span></button>` : `<div class="figure-placeholder">Aún no se ha generado esta imagen</div>`}
       <div class="figure-copy"><strong>${escapeHtml(figureTitle)}</strong>${figure.image_prompt ? `<p>${escapeHtml(figure.image_prompt)}</p>` : ""}${hasImage && figure.image.estimatedCostCents != null ? `<small>Coste estimado: ${escapeHtml(String(Number(figure.image.estimatedCostCents).toFixed(1)))} c</small>` : ""}</div>
@@ -1870,7 +1911,13 @@ function figureCard(blogId, figure) {
               </select>
             </label>
           </div>
-          <label class="switch-row"><span>Marco y logo corporativo <span class="field-hint">(opcional en blog)</span></span><input type="checkbox" class="fig-frame" /></label>
+          ${brandTreatmentControls({
+            frameClass: "fig-frame",
+            logoClass: "fig-logo",
+            withFrame: figure.image?.config?.withFrame ?? false,
+            withLogo: figure.image?.config?.withLogo ?? (figure.image?.config?.withFrame ?? false),
+            note: "Opcional en blog; el texto de la imagen no se modifica.",
+          })}
           <label>Un matiz opcional<textarea class="fig-notes" rows="2" placeholder="Ej.: luz de primera hora, una escena sin personas..."></textarea></label>
           <button class="primary-button" type="button" data-action="blog-figure-generate" data-blog="${escapeAttr(blogId)}" data-fig="${id}">${iconSvg("spark")}${hasImage ? "Crear propuesta visual" : "Generar imagen"}</button>
         </div>
@@ -1883,6 +1930,7 @@ function renderLibrary() {
   const files = getFilteredFiles();
   const pending = (app.state.files || []).filter((file) => !["completed", "local_only"].includes(file.status)).length;
   document.getElementById("libraryView").innerHTML = `
+    ${manufacturerSourcesPanel()}
     <div class="library-grid">
       <form class="panel form-grid" id="uploadForm" enctype="multipart/form-data">
         <label>Archivo<input name="file" type="file" required /></label>
@@ -1914,6 +1962,76 @@ function renderLibrary() {
       </div>
     </div>
   `;
+}
+
+function manufacturerSourcesPanel() {
+  const sources = app.state.manufacturerSources || [];
+  const updated = sources.filter((source) => source.website?.lastStatus === "updated").length;
+  const xEnabled = sources.filter((source) => source.social?.x?.enabled).length;
+  return `
+    <section class="manufacturer-sources-panel" aria-labelledby="manufacturer-sources-title">
+      <header class="manufacturer-sources-head">
+        <div>
+          <p class="eyebrow">Fuentes de fabricantes</p>
+          <h3 id="manufacturer-sources-title">${sources.length} marcas verificadas desde nexiagp.com</h3>
+          <p>Actualiza solo la web oficial de la marca que necesites. El resultado queda en la biblioteca como fuente local y no condiciona la IA hasta sincronizarlo expresamente.</p>
+        </div>
+        <div class="manufacturer-source-summary">
+          <span>${updated} web${updated === 1 ? " actualizada" : "s actualizadas"}</span>
+          <span>${xEnabled} cuenta${xEnabled === 1 ? " X preparada" : "s X preparadas"}</span>
+        </div>
+      </header>
+      <div class="manufacturer-sources-notice">
+        <strong>Redes sociales:</strong> se detectan enlaces desde cada web. X solo se consulta mediante su API oficial, con una cuenta confirmada y el token privado <code>X_API_BEARER_TOKEN</code>; al activarla se revisa en el cron diario. Instagram y LinkedIn quedan visibles para revisión manual.
+      </div>
+      <div class="manufacturer-source-grid">
+        ${sources.map(manufacturerSourceCard).join("")}
+      </div>
+    </section>`;
+}
+
+function manufacturerSourceCard(source) {
+  const web = source.website || {};
+  const x = source.social?.x || {};
+  const socials = source.discoveredSocials || [];
+  const websiteStatus = web.lastStatus === "updated" ? `Actualizada ${formatTimestamp(web.lastSyncAt)}`
+    : web.lastStatus === "error" ? (web.lastError || "No se pudo actualizar")
+      : "Aún no actualizada";
+  const xStatus = !x.enabled ? "Desactivado"
+    : !x.credentialsConfigured ? "Falta token privado"
+      : !x.handle ? "Confirma el usuario"
+        : x.status === "updated" ? `Consultada ${formatTimestamp(x.lastSyncAt)}`
+          : (x.lastError || "Pendiente de consulta");
+  const discovered = socials.length
+    ? socials.map((social) => `<a href="${escapeAttr(social.url)}" target="_blank" rel="noopener">${escapeHtml(social.network === "x" ? "X" : social.network)}</a>`).join(" · ")
+    : "Se detectarán al actualizar la web";
+  return `
+    <form class="manufacturer-source-form" data-id="${escapeAttr(source.id)}">
+      <header class="manufacturer-source-card-head">
+        <div><p class="eyebrow">${escapeHtml(source.sector || "Fabricante")}</p><h4>${escapeHtml(source.name)}</h4></div>
+        <span class="status-badge ${web.enabled ? "published" : "draft"}">${web.enabled ? "Web activa" : "Web pausada"}</span>
+      </header>
+      <a class="manufacturer-site-link" href="${escapeAttr(web.url || "#")}" target="_blank" rel="noopener">Web oficial ↗</a>
+      <div class="manufacturer-source-status">
+        <span><strong>Web</strong>${escapeHtml(websiteStatus)}${web.pages ? ` · ${escapeHtml(String(web.pages))} páginas` : ""}</span>
+        <span><strong>X</strong>${escapeHtml(xStatus)}</span>
+      </div>
+      <p class="manufacturer-discovered"><strong>Redes detectadas:</strong> ${discovered}${x.candidateHandle && !x.handle ? ` · posible @${escapeHtml(x.candidateHandle)}` : ""}</p>
+      <div class="manufacturer-card-actions">
+        <button class="secondary-button small" type="button" data-action="manufacturer-web-sync" data-id="${escapeAttr(source.id)}">Actualizar web</button>
+        <button class="ghost-button small" type="button" data-action="manufacturer-website-toggle" data-id="${escapeAttr(source.id)}" data-enabled="${web.enabled ? "true" : "false"}">${web.enabled ? "Pausar" : "Activar"}</button>
+      </div>
+      <div class="manufacturer-x-config">
+        <label>Usuario oficial de X
+          <input name="xHandle" value="${escapeAttr(x.handle || "")}" placeholder="ej. marca_oficial" autocomplete="off" />
+        </label>
+        <label class="switch-row"><span>Monitorizar X</span><input name="xEnabled" type="checkbox" ${x.enabled ? "checked" : ""} /></label>
+        <div class="manufacturer-card-actions">
+          <button class="ghost-button small" type="submit">Guardar X</button>
+          <button class="ghost-button small" type="button" data-action="manufacturer-x-sync" data-id="${escapeAttr(source.id)}" ${x.enabled && x.handle && x.credentialsConfigured ? "" : "disabled"}>Consultar X</button>
+        </div>
+      </div>
+    </form>`;
 }
 
 function getFilteredFiles() {
@@ -2218,10 +2336,11 @@ function renderAutomation() {
   document.getElementById("automationView").innerHTML = `
     <div class="settings-grid">
       <form class="panel form-grid" id="automationForm">
-        <label class="switch-row"><span>Scheduler</span><input name="schedulerEnabled" type="checkbox" ${settings.schedulerEnabled ? "checked" : ""} /></label>
+        <label class="switch-row"><span>Generación automática <span class="field-hint">${settings.schedulerEnabled ? "Activa" : "Pausada"}</span></span><input name="schedulerEnabled" type="checkbox" ${settings.schedulerEnabled ? "checked" : ""} /></label>
         <label>Cadencia en días<input name="cadenceDays" type="number" min="1" max="30" value="${escapeAttr(settings.cadenceDays || 3)}" /></label>
         ${selectField("defaultPostTypeId", "Tipo por defecto", editorialPostTypeOptions(), settings.defaultPostTypeId || "educativo_autoridad")}
         <label>Modo de salida<select name="publishMode">${publishModeOptions(settings.publishMode)}</select></label>
+        ${schedulerRotationHint(settings)}
         ${app.state.hasSocialWebhook ? "" : `<p class="form-hint muted">La publicación automática se desbloquea al conectar el webhook social. Mientras tanto, el flujo termina en revisión.</p>`}
         <input type="hidden" name="model" value="${escapeAttr(settings.model || "")}" />
         <input type="hidden" name="vectorStoreId" value="${escapeAttr(settings.vectorStoreId || "")}" />
@@ -2237,6 +2356,11 @@ function renderAutomation() {
       </div>
     </div>
   `;
+}
+
+function schedulerRotationHint(settings) {
+  const next = settings.schedulerNextThemeTitle || "la primera temática activa";
+  return `<p class="automation-rotation-note"><strong>Rotación editorial:</strong> se crea una sola pieza cada ${escapeHtml(String(settings.cadenceDays || 3))} días y se alternan todas las temáticas activas. Siguiente: <strong>${escapeHtml(next)}</strong>. Pausar el interruptor detiene solo las ejecuciones automáticas; “Ejecutar ahora” sigue siendo manual.</p>`;
 }
 
 function publishModeOptions(selected) {
@@ -2286,7 +2410,8 @@ function renderSettingsGeneralTab() {
           ${selectField("defaultPostTypeId", "Tipo por defecto", editorialPostTypeOptions(), settings.defaultPostTypeId || "educativo_autoridad")}
         </div>
         <label>Modo de salida<select name="publishMode">${publishModeOptions(settings.publishMode)}</select></label>
-        <label class="switch-row"><span>Scheduler</span><input name="schedulerEnabled" type="checkbox" ${settings.schedulerEnabled ? "checked" : ""} /></label>
+        <label class="switch-row"><span>Generación automática <span class="field-hint">${settings.schedulerEnabled ? "Activa" : "Pausada"}</span></span><input name="schedulerEnabled" type="checkbox" ${settings.schedulerEnabled ? "checked" : ""} /></label>
+        ${schedulerRotationHint(settings)}
         <button class="primary-button" type="submit">${iconSvg("save")}Guardar ajustes</button>
       </form>
       <div class="panel">
@@ -2853,16 +2978,40 @@ function visualChoiceCards(group, selected, field) {
     </div>`;
 }
 
+function brandTreatmentLabel(image) {
+  const withFrame = image?.config?.withFrame ?? image?.cloudinary?.withFrame ?? false;
+  const withLogo = image?.config?.withLogo ?? image?.cloudinary?.withLogo ?? withFrame;
+  if (withFrame && withLogo) return "Marco + logo Nexia";
+  if (withFrame) return "Solo marco";
+  if (withLogo) return "Solo logo Nexia";
+  return "Imagen limpia";
+}
+
+function brandTreatmentControls({ frameClass, logoClass, withFrame, withLogo, note }) {
+  return `
+    <fieldset class="brand-treatment-controls">
+      <legend>Acabado de marca</legend>
+      <p class="field-hint">Elige cada elemento por separado. Se compone localmente tras generar la imagen.</p>
+      <div class="brand-treatment-options">
+        <label class="switch-row"><span>Marco Nexia</span><input type="checkbox" class="${escapeAttr(frameClass)}" ${withFrame ? "checked" : ""} /></label>
+        <label class="switch-row"><span>Logo Nexia</span><input type="checkbox" class="${escapeAttr(logoClass)}" ${withLogo ? "checked" : ""} /></label>
+      </div>
+      ${note ? `<p class="field-hint brand-treatment-note">${escapeHtml(note)}</p>` : ""}
+    </fieldset>`;
+}
+
 function imageSection(post) {
   const img = post.image;
   const id = escapeAttr(post.id);
-  const withFrame = img?.config?.withFrame ?? img?.cloudinary?.withFrame;
+  const defaults = post.imageDefaults || { withFrame: true, withLogo: true };
+  const withFrame = img?.config?.withFrame ?? img?.cloudinary?.withFrame ?? defaults.withFrame ?? true;
+  const withLogo = img?.config?.withLogo ?? img?.cloudinary?.withLogo ?? defaults.withLogo ?? withFrame;
   const validation = img?.validation;
   const approved = img?.review?.status === "approved";
   const existingImage = img ? `
     <div class="generated-image-wrap visual-current-details">
       <div class="image-meta">
-        <span class="status-badge ${withFrame ? "published" : "draft"}">${withFrame ? "Marco + logo aplicado" : "Imagen limpia"}</span>
+        <span class="status-badge ${(withFrame || withLogo) ? "published" : "draft"}">${escapeHtml(brandTreatmentLabel(img))}</span>
         ${approved ? badge("Revisada por editor", "published") : badge("Revisión visual pendiente", "draft")}
         ${validation?.valid ? `<span class="status-badge published">PNG verificado</span><span class="pill">${escapeHtml(`${validation.width}×${validation.height}`)}</span>` : ""}
         <span class="pill">${escapeHtml(labelForVisual("directions", img.config?.direction))}</span>
@@ -2924,10 +3073,13 @@ function imageSection(post) {
                 </select>
               </label>
             </div>
-            <label class="switch-row">
-              <span>Marco y logo corporativo <span class="field-hint">(se componen localmente después de la generación)</span></span>
-              <input type="checkbox" class="img-frame" ${withFrame !== false ? "checked" : ""} />
-            </label>
+            ${brandTreatmentControls({
+              frameClass: "img-frame",
+              logoClass: "img-logo",
+              withFrame,
+              withLogo,
+              note: "Puedes combinar ambos, o dejar la pieza limpia.",
+            })}
             <label>Un matiz opcional <span class="field-hint">(solo aquello que no hayas elegido arriba)</span>
               <textarea class="img-notes" rows="2" placeholder="Ej.: luz de primera hora, muelle de carga, acero y madera, sin personas..."></textarea>
             </label>

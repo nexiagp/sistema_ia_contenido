@@ -32,7 +32,7 @@ MANDATORY CRITERIA:
 - Specific, concrete scenes — not generic representations
 - When the post context is Canary Islands: include relevant visual cues (volcanic landscape, Atlantic coastline, Mediterranean light, island architecture)
 - No text, no logos, no brand elements anywhere in the image. Do not try to reproduce Nexia GP's logo: it is applied after generation by a deterministic brand compositor.
-- Follow the supplied logo-safe-area instruction exactly: it only applies when the editor has activated the local brand frame.
+- Follow the supplied logo-safe-area instruction exactly: it only applies when the editor has activated a local Nexia brand treatment.
 - Never solve a business concept with a map, diagram, chart, technical drawing, readable paperwork, collage or split screen. A photograph must work as a real scene before it works as an illustration.
 - The selected visual role and composition are binding. They are creative decisions made by the editor, not optional inspiration.
 
@@ -70,7 +70,7 @@ class ImagePromptService:
         composition: object,
         user_notes: str,
         *,
-        with_frame: bool,
+        with_branding: bool,
     ) -> tuple[dict, str | None]:
         generation = post.get("generation") or {}
         copy_obj = generation.get("copy") or {}
@@ -98,7 +98,7 @@ class ImagePromptService:
             "",
             f"SELECTED VISUAL ROLE: {VISUAL_DIRECTIONS[direction_id]['label']}",
             f"SELECTED COMPOSITION: {COMPOSITIONS[composition_id]['label']}",
-            visual_direction_prompt(direction_id, composition_id, with_frame=with_frame),
+            visual_direction_prompt(direction_id, composition_id, with_frame=with_branding),
             f"ADDITIONAL USER NOTES: {user_notes}" if user_notes and user_notes.strip() else "",
         ]
         user_input = "\n".join(p for p in parts if p is not None)

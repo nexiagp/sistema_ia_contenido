@@ -137,7 +137,7 @@ def visual_direction_prompt(direction: object, composition: object, *, with_fram
     direction_id, composition_id = normalize_visual_choice(direction, composition)
     frame_note = (
         "Keep the lower-right 18% visually calm and free of subjects, signs and high-contrast detail; "
-        "the approved Nexia GP logo is composited there after generation."
+        "a selected Nexia GP brand treatment may be composited there after generation."
         if with_frame
         else "Use the full frame naturally; no logo is generated into the image."
     )

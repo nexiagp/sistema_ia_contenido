@@ -68,6 +68,19 @@ editorial persistido.
 5. La publicación social real no se activa sin un `SOCIAL_WEBHOOK_URL` válido; a fecha de este
    documento no hay webhook configurado.
 
+### Fuentes de fabricantes y redes
+
+La biblioteca incluye un catálogo de fabricantes con webs oficiales. Al actualizar una marca, la
+API lee su página principal y hasta cuatro secciones relevantes del mismo dominio, crea o actualiza
+un documento local y sólo lo incorpora al contexto de posts y blogs al sincronizarlo con el Vector
+Store. Una actualización posterior reemplaza el adjunto anterior de ese mismo documento lógico,
+para evitar duplicados.
+
+La aplicación puede descubrir enlaces a redes desde esas webs. Sólo X admite monitorización
+automática y es siempre opt-in: exige una cuenta confirmada, `X_API_BEARER_TOKEN` en servidor y el
+cron diario. Instagram y LinkedIn se mantienen en revisión manual. El detalle de catálogo,
+operación y tareas pendientes está en [Estado y hoja de ruta](ESTADO_Y_HOJA_DE_RUTA_2026-08-31.md).
+
 Los trabajos largos se guardan y recuperan desde el backend persistente para que una invocación
 serverless interrumpida no pierda silenciosamente el estado del encargo.
 
@@ -75,8 +88,8 @@ serverless interrumpida no pierda silenciosamente el estado del encargo.
 
 1. La API obtiene un prompt visual y solicita la imagen a OpenAI.
 2. En Vercel, el PNG se escribe temporalmente en `/tmp/nexiagp-images`.
-3. Se valida formato, tamaño y dimensiones; si se solicita, se compone localmente el marco de
-   marca.
+3. Se valida formato, tamaño y dimensiones; si se solicita, se compone localmente el marco, el
+   logo Nexia o ambos.
 4. El PNG original y, si existe, el PNG compuesto se suben al bucket `editorial-images` de
    Supabase antes de terminar la invocación.
 5. Se guarda sólo la referencia `/images/...` y los metadatos de validación en el estado. Los
@@ -106,6 +119,7 @@ Las variables se gestionan en Vercel para **Production**. Los nombres son públi
 ```text
 OPENAI_API_KEY
 OPENAI_MODEL
+X_API_BEARER_TOKEN
 CLOUDINARY_API_KEY
 CLOUDINARY_API_SECRET
 CLOUDINARY_CLOUD_NAME

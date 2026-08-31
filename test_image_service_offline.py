@@ -102,6 +102,24 @@ class ImageServiceOfflineTests(unittest.TestCase):
                 self.assertEqual(result.format, "PNG")
                 self.assertEqual(result.size, (432, 332))
 
+    def test_brand_treatment_supports_frame_or_logo_independently(self) -> None:
+        with TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            source = root / "source.png"
+            logo = root / "logo.png"
+            Image.new("RGB", (400, 300), (44, 91, 104)).save(source, format="PNG")
+            Image.new("RGBA", (160, 50), (255, 255, 255, 220)).save(logo, format="PNG")
+
+            frame_only = root / "frame-only.png"
+            logo_only = root / "logo-only.png"
+            compose_branded_frame(source, frame_only, with_frame=True, with_logo=False, logo_path=logo)
+            compose_branded_frame(source, logo_only, with_frame=False, with_logo=True, logo_path=logo)
+
+            with Image.open(frame_only) as result:
+                self.assertEqual(result.size, (432, 332))
+            with Image.open(logo_only) as result:
+                self.assertEqual(result.size, (400, 300))
+
     def test_manual_publish_is_rejected_without_a_connected_webhook(self) -> None:
         post = {"status": "ready"}
         with patch.dict("os.environ", {"SOCIAL_WEBHOOK_URL": ""}):
