@@ -35,6 +35,11 @@ _ARTICLE_OPEN_RE = re.compile(r"^\s*<article\b[^>]*\bblog-post\b[^>]*>", re.IGNO
 _ARTICLE_CLOSE_RE = re.compile(r"</article\s*>\s*$", re.IGNORECASE)
 _FIRST_H1_RE = re.compile(r"<h1\b[^>]*>.*?</h1\s*>", re.IGNORECASE | re.DOTALL)
 _FILENAME_RE = re.compile(r"[^a-z0-9_-]+", re.IGNORECASE)
+_RANK_MATH_META_FIELDS = (
+    "rank_math_title",
+    "rank_math_description",
+    "rank_math_focus_keyword",
+)
 
 
 class WordPressError(RuntimeError):
@@ -241,6 +246,86 @@ class WordPressService:
                 return item
         return None
 
+    @staticmethod
+    def _rank_math_meta_fields_from_options(response: dict | list) -> set[str]:
+        """Find Rank Math fields registered in the posts REST schema.
+
+        WordPress only accepts post meta through the REST API if the plugin has
+        registered it with ``show_in_rest``.  The exact OPTIONS envelope varies
+        between WordPress versions, so inspect both common shapes instead of
+        assuming the plugin is writable just because it is installed.
+        """
+        if not isinstance(response, dict):
+            return set()
+
+        candidates: list[dict] = []
+        schema = response.get("schema")
+        if isinstance(schema, dict):
+            candidates.append(schema)
+        endpoints = response.get("endpoints")
+        if isinstance(endpoints, list):
+            for endpoint in endpoints:
+                if isinstance(endpoint, dict):
+                    args = endpoint.get("args")
+                    meta = args.get("meta") if isinstance(args, dict) else None
+                    if isinstance(meta, dict):
+                        candidates.append({"properties": {"meta": meta}})
+        routes = response.get("routes")
+        if isinstance(routes, dict):
+            for route in routes.values():
+                if isinstance(route, dict):
+                    candidates.append(route)
+                    route_endpoints = route.get("endpoints")
+                    if isinstance(route_endpoints, list):
+                        candidates.extend(item for item in route_endpoints if isinstance(item, dict))
+
+        available: set[str] = set()
+        for candidate in candidates:
+            args = candidate.get("args") if isinstance(candidate.get("args"), dict) else {}
+            properties = candidate.get("properties") if isinstance(candidate.get("properties"), dict) else {}
+            meta = properties.get("meta") or args.get("meta")
+            if not isinstance(meta, dict):
+                continue
+            meta_properties = meta.get("properties")
+            if not isinstance(meta_properties, dict):
+                schema = meta.get("schema")
+                meta_properties = schema.get("properties") if isinstance(schema, dict) else {}
+            if isinstance(meta_properties, dict):
+                available.update(field for field in _RANK_MATH_META_FIELDS if field in meta_properties)
+        return available
+
+    def rank_math_meta_fields(self) -> set[str]:
+        """Return the safe, REST-writable Rank Math fields for this site.
+
+        Rank Math is an optional SEO layer.  A failed capability check must not
+        prevent editors from creating a WordPress draft, so it falls back to an
+        explicit manual review state.
+        """
+        try:
+            response = self._request("posts?context=edit", method="OPTIONS")
+        except WordPressError:
+            return set()
+        return self._rank_math_meta_fields_from_options(response)
+
+    @staticmethod
+    def rank_math_meta_values(
+        available_fields: set[str],
+        *,
+        meta_title: str,
+        meta_description: str,
+        focus_keyword: str,
+    ) -> dict[str, str]:
+        source = {
+            "rank_math_title": meta_title.strip()[:255],
+            "rank_math_description": meta_description.strip()[:500],
+            "rank_math_focus_keyword": focus_keyword.strip()[:255],
+        }
+        return {
+            field: value
+            for field, value in source.items()
+            if field in available_fields and value
+        }
+
     def upsert_draft(
         self,
         *,
@@ -253,6 +338,7 @@ class WordPressService:
         existing: dict | None = None,
         category_id: int | None = None,
         author_id: int | None = None,
+        rank_math_meta: dict[str, str] | None = None,
     ) -> dict:
         if not title.strip() or not slug.strip() or not content.strip():
             raise WordPressError("El blog necesita título, slug y contenido antes de enviarlo a WordPress.")
@@ -275,6 +361,13 @@ class WordPressService:
             payload["categories"] = [int(category_id)]
         if author_id:
             payload["author"] = int(author_id)
+        safe_rank_math_meta = {
+            key: str(value)
+            for key, value in (rank_math_meta or {}).items()
+            if key in _RANK_MATH_META_FIELDS and str(value).strip()
+        }
+        if safe_rank_math_meta:
+            payload["meta"] = safe_rank_math_meta
         post_id = target.get("postId") or target.get("id")
         response = self._request(f"posts/{int(post_id)}" if post_id else "posts", method="POST", payload=payload)
         if not isinstance(response, dict) or not response.get("id") or not response.get("link"):
@@ -330,6 +423,13 @@ class WordPressService:
         article_html = str(article.get("article_html_override") or article.get("article_html") or "")
         content = clean_wordpress_article(article_html, media_by_figure)
         excerpt = str(blog.get("metaDescription") or seo.get("meta_description") or "").strip()
+        rank_math_fields = self.rank_math_meta_fields()
+        rank_math_meta = self.rank_math_meta_values(
+            rank_math_fields,
+            meta_title=str(blog.get("metaTitle") or seo.get("meta_title") or title),
+            meta_description=excerpt,
+            focus_keyword=str((blog.get("brief") or {}).get("primary_keyword") or seo.get("primary_keyword") or ""),
+        )
         featured = media_by_figure.get("hero") or next(iter(media_by_figure.values()), None)
         post = self.upsert_draft(
             blog_id=str(blog.get("id") or ""),
@@ -341,7 +441,13 @@ class WordPressService:
             existing=blog.get("wordpress") if isinstance(blog.get("wordpress"), dict) else None,
             category_id=category_id,
             author_id=author_id,
+            rank_math_meta=rank_math_meta,
         )
+        post["rankMath"] = {
+            "detected": bool(rank_math_fields),
+            "applied": sorted(rank_math_meta),
+            "manualReview": not bool(rank_math_meta),
+        }
         return {
             "post": post,
             "figures": figure_sync,

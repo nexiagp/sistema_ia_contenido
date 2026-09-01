@@ -138,7 +138,7 @@ Puedes **copiar HTML** o **descargar HTML** si necesitas una entrega manual. Ant
 Para el flujo conectado con WordPress, usa siempre esta secuencia visible en la ficha del blog:
 
 1. **Aprobar contenido**: registra la revisión editorial y deja el artículo listo para WordPress. Si hay una puerta de calidad, revisa sus avisos antes de confirmarla.
-2. **Crear borrador en WordPress**: envía o actualiza el borrador con el contenido y las imágenes optimizadas. Este paso nunca publica el artículo. Si el botón está desactivado, falta aprobar el contenido o configurar WordPress en el servidor.
+2. **Crear borrador en WordPress**: envía o actualiza el borrador con el contenido y las imágenes optimizadas. Este paso nunca publica el artículo. Si Rank Math expone sus campos a la API, también completa metatítulo, metadescripción y keyword principal; si no, la ficha señala esos tres campos para revisión manual antes de publicar. Si el botón está desactivado, falta aprobar el contenido o configurar WordPress en el servidor.
 3. **Reservar fecha**: se realiza desde **Calendario editorial** y sólo organiza la agenda interna. Después de revisar el borrador, programa o publica manualmente desde WordPress según el proceso acordado por el equipo.
 
 Eliminar un artículo es irreversible desde la interfaz: confirma primero que no se necesitará como referencia o versión base.

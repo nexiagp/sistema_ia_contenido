@@ -1620,6 +1620,13 @@ function blogDetail(blog) {
     : wordpressDraftExists
       ? `<small class="blog-handoff-note">Borrador de WordPress · ${escapeHtml(wordpress.status || "draft")} · ${escapeHtml(formatTimestamp(wordpress.lastSyncAt))}</small>`
       : `<small class="blog-handoff-note">${wordpressConfigured ? "Siempre crea un borrador; nunca publica el artículo." : "WordPress aún no está configurado en el servidor."}</small>`;
+  const rankMath = wordpress.rankMath || {};
+  const rankMathApplied = Array.isArray(rankMath.applied) ? rankMath.applied : [];
+  const rankMathMessage = wordpressDraftExists
+    ? rankMathApplied.length
+      ? `Rank Math aplicado: ${rankMathApplied.map((field) => ({ rank_math_title: "metatítulo", rank_math_description: "metadescripción", rank_math_focus_keyword: "keyword" }[field] || field)).join(", ")}.`
+      : "Rank Math: revisa metatítulo, metadescripción y keyword antes de publicar."
+    : "Rank Math se completará automáticamente si sus campos están disponibles por API; si no, quedará señalado para revisión.";
 
   return `
     <div class="blog-detail">
@@ -1657,7 +1664,7 @@ function blogDetail(blog) {
           </li>
           <li class="blog-handoff-step ${wordpressDraftExists ? "is-complete" : approvedForWordPress ? "is-current" : "is-waiting"}">
             <span class="blog-handoff-index" aria-hidden="true">2</span>
-            <div class="blog-handoff-copy"><span>WordPress</span><h4>${wordpressDraftExists ? "Borrador creado" : "Crear borrador"}</h4><p>Inserta el artículo y sus imágenes en la plantilla actual de la web.</p></div>
+            <div class="blog-handoff-copy"><span>WordPress</span><h4>${wordpressDraftExists ? "Borrador creado" : "Crear borrador"}</h4><p>Inserta el artículo y sus imágenes en la plantilla actual de la web. ${escapeHtml(rankMathMessage)}</p></div>
             <div class="blog-handoff-action">${wordpressControl}${wordpressDraftExists ? `<a class="secondary-button" href="${escapeAttr(wordpress.editUrl || wordpress.postUrl)}" target="_blank" rel="noopener">${iconSvg("expand")}Abrir borrador</a>` : ""}${wordpressError}</div>
           </li>
           <li class="blog-handoff-step ${blog.scheduledFor ? "is-complete" : "is-waiting"}">

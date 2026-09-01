@@ -102,6 +102,64 @@ class WordPressArticleTests(unittest.TestCase):
         self.assertIn("wp-image-77", captured["content"])
         self.assertEqual(result["post"]["postId"], 123)
 
+    def test_sync_applies_rank_math_fields_only_when_wordpress_registers_them(self) -> None:
+        service = WordPressService(base_url="https://example.com", username="editor", application_password="test")
+        captured: dict = {}
+
+        def request(path: str, **kwargs):
+            self.assertEqual(path, "posts?context=edit")
+            self.assertEqual(kwargs["method"], "OPTIONS")
+            return {
+                "endpoints": [{
+                    "args": {
+                        "meta": {
+                            "properties": {
+                                "rank_math_title": {"type": "string"},
+                                "rank_math_description": {"type": "string"},
+                                "rank_math_focus_keyword": {"type": "string"},
+                            }
+                        }
+                    }
+                }]
+            }
+
+        def upsert(**kwargs):
+            captured.update(kwargs)
+            return {"postId": 456, "postUrl": "https://example.com/rank-math/", "editUrl": "https://example.com/edit", "status": "draft"}
+
+        service._request = request  # type: ignore[method-assign]
+        service.upsert_draft = upsert  # type: ignore[method-assign]
+        blog = {
+            "id": "blog_rank_math",
+            "title": "Título visible",
+            "slug": "titulo-visible",
+            "metaTitle": "Título SEO | Nexia GP",
+            "metaDescription": "Descripción SEO para Rank Math.",
+            "brief": {"primary_keyword": "automatización de contenidos B2B"},
+            "article": {"article_html": "<article><h1>Título visible</h1><p>Cuerpo.</p></article>"},
+            "figures": [],
+        }
+
+        result = service.sync_blog_draft(blog, image_loader=lambda _image: (_ for _ in ()).throw(AssertionError("No hay imágenes")))
+
+        self.assertEqual(captured["rank_math_meta"], {
+            "rank_math_title": "Título SEO | Nexia GP",
+            "rank_math_description": "Descripción SEO para Rank Math.",
+            "rank_math_focus_keyword": "automatización de contenidos B2B",
+        })
+        self.assertTrue(result["post"]["rankMath"]["detected"])
+        self.assertFalse(result["post"]["rankMath"]["manualReview"])
+
+    def test_rank_math_falls_back_to_manual_review_when_meta_is_not_exposed(self) -> None:
+        service = WordPressService(base_url="https://example.com", username="editor", application_password="test")
+        service._request = lambda *_args, **_kwargs: {"endpoints": []}  # type: ignore[method-assign]
+
+        self.assertEqual(service.rank_math_meta_fields(), set())
+        self.assertEqual(
+            service.rank_math_meta_values(set(), meta_title="Título", meta_description="Descripción", focus_keyword="keyword"),
+            {},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
