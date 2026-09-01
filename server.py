@@ -1412,6 +1412,7 @@ def process_one_remote_generation_job() -> dict | None:
 
 def refresh_blog_quality_gate(blog: dict) -> dict:
     """Sanitize the effective article and refresh its deterministic ready gate."""
+    previous_gate = blog.get("qualityGate")
     article = blog.setdefault("article", {})
     effective_article = dict(article)
     has_override = isinstance(article.get("article_html_override"), str) and article.get("article_html_override").strip()
@@ -1432,6 +1433,14 @@ def refresh_blog_quality_gate(blog: dict) -> dict:
         blog["article"] = safe_article
     blog["seo"] = safe_seo
     blog["wordCount"] = safe_article.get("word_count", 0)
+    # A sync re-runs the deterministic checks to avoid sending stale content,
+    # but it must not discard the editorial acknowledgement already recorded
+    # for that same content.  Losing it made an approved blog appear pending
+    # again when the WordPress draft action was pressed.
+    if isinstance(previous_gate, dict) and previous_gate.get("reviewAcknowledgedAt"):
+        quality_gate["reviewAcknowledgedAt"] = previous_gate["reviewAcknowledgedAt"]
+        quality_gate["reviewAcknowledged"] = True
+        quality_gate["can_mark_ready"] = True
     blog["qualityGate"] = quality_gate
     return quality_gate
 
@@ -1471,6 +1480,14 @@ def patch_blog(blog_id: str, body: dict) -> dict:
                     blog.setdefault("article", {})["article_html_override"] = body[key]
                 elif key != "status":
                     blog[key] = body[key]
+        # Any editorial change requires a fresh human acknowledgement.  A
+        # status-only update or a WordPress re-sync keeps the prior approval.
+        if any(key in body for key in {"metaTitle", "metaDescription", "slug", "title", "articleHtmlOverride"}):
+            existing_gate = blog.get("qualityGate")
+            if isinstance(existing_gate, dict) and existing_gate.get("blockers"):
+                existing_gate.pop("reviewAcknowledgedAt", None)
+                existing_gate.pop("reviewAcknowledged", None)
+                existing_gate["can_mark_ready"] = False
         quality_gate = refresh_blog_quality_gate(blog)
         if as_bool(body.get("reviewAcknowledged"), False):
             acknowledge_quality_gate(blog)

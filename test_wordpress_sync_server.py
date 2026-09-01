@@ -33,6 +33,21 @@ class _FakeWordPressService:
 
 
 class WordPressServerSyncTests(unittest.TestCase):
+    def test_refresh_keeps_the_recorded_editorial_acknowledgement(self) -> None:
+        review_time = "2026-09-01T10:00:00Z"
+        blog = {
+            "article": {"article_html": "<article><h1>Piloto</h1><p>Cuerpo.</p></article>"},
+            "qualityGate": {"blockers": ["Revisar la fuente"], "reviewAcknowledgedAt": review_time},
+        }
+        refreshed_gate = {"blockers": ["Revisar la fuente"], "can_mark_ready": False}
+
+        with patch.object(server, "blog_quality_gate", return_value=({}, {}, refreshed_gate)):
+            result = server.refresh_blog_quality_gate(blog)
+
+        self.assertEqual(result["reviewAcknowledgedAt"], review_time)
+        self.assertTrue(result["reviewAcknowledged"])
+        self.assertTrue(result["can_mark_ready"])
+
     def test_public_vercel_deployment_cannot_trigger_wordpress_writes(self) -> None:
         with patch.dict(os.environ, {"VERCEL": "1", "NEXIAGP_AUTH_REQUIRED": "0"}, clear=False):
             with self.assertRaises(server.ApiError) as blocked:
@@ -73,6 +88,34 @@ class WordPressServerSyncTests(unittest.TestCase):
         self.assertEqual(persisted["wordpress"]["postId"], 701)
         self.assertEqual(persisted["figures"][0]["wordpress"]["mediaId"], 811)
         self.assertIsNone(persisted["wordpress"]["lastError"])
+
+    def test_reviewed_blog_can_sync_when_the_gate_is_refreshed(self) -> None:
+        blog = {
+            "id": "blog_reviewed_wordpress_pilot",
+            "status": "ready",
+            "request": {"length": "medio", "images_per_article": 0},
+            "article": {"article_html": "<article><h1>Piloto</h1><p>Cuerpo.</p></article>", "word_count": 2},
+            "seo": {},
+            "figures": [],
+            "qualityGate": {"blockers": ["Revisar la fuente"], "reviewAcknowledgedAt": "2026-09-01T10:00:00Z"},
+        }
+        db = {
+            "settings": {}, "themes": [], "postTypes": [], "files": [], "posts": [],
+            "blogs": [blog], "schedulerLog": [], "prompt_overrides": {}, "prompt_versions": {},
+        }
+        refreshed_article = dict(blog["article"])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "db.json"
+            db_path.write_text(json.dumps(db), encoding="utf-8")
+            with (
+                patch.object(server, "DB_PATH", db_path),
+                patch.object(server, "WordPressService", _FakeWordPressService),
+                patch.object(server, "blog_quality_gate", return_value=(refreshed_article, {}, {"blockers": ["Revisar la fuente"]})),
+            ):
+                result = server.sync_blog_to_wordpress_draft("blog_reviewed_wordpress_pilot")
+
+        self.assertTrue(result["ok"])
 
     def test_draft_cannot_sync_to_wordpress_before_editorial_approval(self) -> None:
         blog = {
