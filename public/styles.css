@@ -2098,6 +2098,175 @@ button:disabled {
   flex-wrap: wrap;
 }
 
+/* Handoff editorial: la secuencia visible evita confundir agenda y publicación. */
+.blog-handoff {
+  overflow: hidden;
+  border: 1px solid #b8d4ce;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, #f4fbf9 0%, #ffffff 54%);
+}
+
+.blog-handoff-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 17px 20px;
+  border-bottom: 1px solid #d7e8e3;
+}
+
+.blog-handoff-head .eyebrow,
+.blog-handoff-copy > span {
+  margin: 0 0 4px;
+  color: var(--accent-hover);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.blog-handoff-head h3,
+.blog-handoff-copy h4 {
+  margin: 0;
+  color: var(--ink);
+}
+
+.blog-handoff-head h3 {
+  font-size: 1.03rem;
+}
+
+.blog-handoff-head > p {
+  max-width: 290px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.blog-handoff-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.blog-handoff-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 11px;
+  min-width: 0;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.blog-handoff-step + .blog-handoff-step {
+  border-left: 1px solid #d7e8e3;
+}
+
+.blog-handoff-step.is-current {
+  background: #e9f6f2;
+}
+
+.blog-handoff-step.is-waiting {
+  background: #fbfcfc;
+}
+
+.blog-handoff-index {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid #a9c8c0;
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--accent-hover);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.blog-handoff-step.is-complete .blog-handoff-index {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.blog-handoff-copy h4 {
+  font-size: 0.94rem;
+  line-height: 1.25;
+}
+
+.blog-handoff-copy p {
+  margin: 5px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.79rem;
+  line-height: 1.45;
+}
+
+.blog-handoff-action {
+  display: flex;
+  grid-column: 2;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-top: 2px;
+}
+
+.blog-handoff-action .primary-button,
+.blog-handoff-action .secondary-button {
+  min-height: 34px;
+  font-size: 0.78rem;
+}
+
+.blog-handoff-confirmed {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent-hover);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.blog-handoff-confirmed svg {
+  width: 16px;
+  height: 16px;
+}
+
+.blog-handoff-note {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.38;
+}
+
+.blog-handoff-note.is-error {
+  color: #a63a2d;
+}
+
+@media (max-width: 850px) {
+  .blog-handoff-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .blog-handoff-head > p {
+    max-width: none;
+    text-align: left;
+  }
+
+  .blog-handoff-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .blog-handoff-step + .blog-handoff-step {
+    border-top: 1px solid #d7e8e3;
+    border-left: 0;
+  }
+}
+
 /* Tabs */
 .blog-tabs, .settings-tabs {
   display: flex;

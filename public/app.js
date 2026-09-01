@@ -551,7 +551,7 @@ function bindEvents() {
         const blog = (app.state.blogs || []).find((item) => item.id === action.dataset.id);
         const payload = { status: action.dataset.status };
         if (action.dataset.status === "ready" && qualityReviewRequired(blog)) {
-          if (!confirm(qualityReviewMessage(blog?.qualityGate, "blog"))) return;
+          if (!confirm(qualityReviewMessage(blog?.qualityGate, "blog", "aprobarlo para WordPress"))) return;
           payload.reviewAcknowledged = true;
         }
         await withLoading(action, () =>
@@ -560,7 +560,25 @@ function bindEvents() {
             body: JSON.stringify(payload),
           }),
         );
-        await loadState("Estado actualizado");
+        await loadState(action.dataset.status === "ready" ? "Contenido aprobado para WordPress" : "Estado actualizado");
+        return;
+      }
+
+      if (name === "blog-wordpress-sync") {
+        const blog = (app.state.blogs || []).find((item) => item.id === action.dataset.id);
+        if (!isBlogApprovedForWordPress(blog)) {
+          toast("Aprueba primero el contenido para WordPress.", true);
+          return;
+        }
+        if (qualityReviewRequired(blog)) {
+          toast("Registra antes la revisión editorial al aprobar el contenido.", true);
+          return;
+        }
+        if (!confirm("Se creará o actualizará un BORRADOR en WordPress. No se publicará ningún artículo. ¿Continuar?")) return;
+        await withLoading(action, () =>
+          api(`/api/blogs/${action.dataset.id}/wordpress/draft`, { method: "POST", body: "{}" }),
+        );
+        await loadState("Borrador de WordPress creado o actualizado");
         return;
       }
 
@@ -1583,6 +1601,25 @@ function blogDetail(blog) {
   const articleHtml = article.article_html_override || article.article_html || "";
   const renderedHtml = injectFigureImages(articleHtml, figures);
   const activeTab = ["seo", "brief", "figures"].includes(app.activeBlogReviewTab) ? app.activeBlogReviewTab : "seo";
+  const wordpress = blog.wordpress || {};
+  const wordpressConfigured = !!app.state?.wordpress?.configured;
+  const approvedForWordPress = isBlogApprovedForWordPress(blog);
+  const wordpressDraftExists = Boolean(wordpress.postId && wordpress.postUrl);
+  const wordpressSyncAvailable = wordpressConfigured && approvedForWordPress;
+  const approvalControl = approvedForWordPress
+    ? `<span class="blog-handoff-confirmed">${iconSvg("check")}Contenido aprobado</span>`
+    : `<button class="primary-button" type="button" data-action="blog-status" data-status="ready" data-id="${escapeAttr(blog.id)}">${iconSvg("check")}Aprobar contenido</button>`;
+  const wordpressControl = wordpressSyncAvailable
+    ? `<button class="primary-button" type="button" data-action="blog-wordpress-sync" data-id="${escapeAttr(blog.id)}" title="${wordpressDraftExists ? "Actualiza el borrador existente; no publica" : "Crea un borrador; no publica"}">${iconSvg("upload")}${wordpressDraftExists ? "Actualizar borrador WordPress" : "Crear borrador en WordPress"}</button>`
+    : `<button class="secondary-button" type="button" disabled title="${wordpressConfigured ? "Aprueba primero el contenido para WordPress" : "Configura WordPress en el servidor para activar esta acción"}">${iconSvg("upload")}Crear borrador en WordPress</button>`;
+  const calendarMessage = blog.scheduledFor
+    ? `Agenda editorial reservada para ${formatDate(blog.scheduledFor)}.`
+    : "Reserva la fecha desde Calendario cuando el equipo haya validado el plan.";
+  const wordpressError = wordpress.lastError
+    ? `<small class="blog-handoff-note is-error">Último intento WordPress: ${escapeHtml(wordpress.lastError)}</small>`
+    : wordpressDraftExists
+      ? `<small class="blog-handoff-note">Borrador de WordPress · ${escapeHtml(wordpress.status || "draft")} · ${escapeHtml(formatTimestamp(wordpress.lastSyncAt))}</small>`
+      : `<small class="blog-handoff-note">${wordpressConfigured ? "Siempre crea un borrador; nunca publica el artículo." : "WordPress aún no está configurado en el servidor."}</small>`;
 
   return `
     <div class="blog-detail">
@@ -1594,6 +1631,7 @@ function blogDetail(blog) {
             <span class="pill">${escapeHtml(brief.search_intent || "")}</span>
             <span class="pill">${escapeHtml(brief.funnel_stage || "")}</span>
             <span class="pill">${article.word_count || 0} palabras</span>
+            ${wordpress.postUrl ? badge("Borrador WordPress", "ready") : ""}
             ${qualityGateBadge(blog.qualityGate)}
           </div>
           <h2>${escapeHtml(blog.title || brief.h1 || "")}</h2>
@@ -1602,10 +1640,33 @@ function blogDetail(blog) {
         <div class="blog-detail-actions">
           <button class="secondary-button" type="button" data-action="blog-copy-html" data-id="${escapeAttr(blog.id)}">${iconSvg("copy")}Copiar HTML</button>
           <button class="secondary-button" type="button" data-action="blog-download" data-id="${escapeAttr(blog.id)}">${iconSvg("upload")}Descargar HTML</button>
-          <button class="primary-button" type="button" data-action="blog-status" data-status="ready" data-id="${escapeAttr(blog.id)}">${iconSvg("check")}Preparar para calendario</button>
           <button class="danger-button" type="button" data-action="blog-delete" data-id="${escapeAttr(blog.id)}">${iconSvg("trash")}Eliminar</button>
         </div>
       </header>
+
+      <section class="blog-handoff" aria-label="Flujo de publicación del blog">
+        <header class="blog-handoff-head">
+          <div><p class="eyebrow">Flujo de publicación</p><h3>Del visto bueno al borrador de la web</h3></div>
+          <p>La agenda organiza el plan editorial. Nunca publica por sí sola.</p>
+        </header>
+        <ol class="blog-handoff-steps">
+          <li class="blog-handoff-step ${approvedForWordPress ? "is-complete" : "is-current"}">
+            <span class="blog-handoff-index" aria-hidden="true">1</span>
+            <div class="blog-handoff-copy"><span>Revisión editorial</span><h4>Aprobar contenido</h4><p>Registra la revisión y deja el artículo listo para enviarlo.</p></div>
+            <div class="blog-handoff-action">${approvalControl}</div>
+          </li>
+          <li class="blog-handoff-step ${wordpressDraftExists ? "is-complete" : approvedForWordPress ? "is-current" : "is-waiting"}">
+            <span class="blog-handoff-index" aria-hidden="true">2</span>
+            <div class="blog-handoff-copy"><span>WordPress</span><h4>${wordpressDraftExists ? "Borrador creado" : "Crear borrador"}</h4><p>Inserta el artículo y sus imágenes en la plantilla actual de la web.</p></div>
+            <div class="blog-handoff-action">${wordpressControl}${wordpressDraftExists ? `<a class="secondary-button" href="${escapeAttr(wordpress.editUrl || wordpress.postUrl)}" target="_blank" rel="noopener">${iconSvg("expand")}Abrir borrador</a>` : ""}${wordpressError}</div>
+          </li>
+          <li class="blog-handoff-step ${blog.scheduledFor ? "is-complete" : "is-waiting"}">
+            <span class="blog-handoff-index" aria-hidden="true">3</span>
+            <div class="blog-handoff-copy"><span>Agenda editorial</span><h4>Reservar fecha</h4><p>Coordina la publicación cada 15 días desde el calendario del equipo.</p></div>
+            <div class="blog-handoff-action"><small class="blog-handoff-note">${escapeHtml(calendarMessage)}</small><small class="blog-handoff-note">La programación final se revisa manualmente en WordPress.</small></div>
+          </li>
+        </ol>
+      </section>
 
       <section class="article-preview-stage" aria-label="Vista previa del artículo">
         <header class="article-preview-stage-head">
@@ -2681,14 +2742,18 @@ function qualityGateBadge(gate) {
 function qualityGateNotice(gate) {
   const blockers = gate?.blockers || [];
   if (!blockers.length) return "";
-  const heading = gate?.reviewAcknowledgedAt ? "Revisión humana registrada" : "Antes de preparar para calendario";
+  const heading = gate?.reviewAcknowledgedAt ? "Revisión humana registrada" : "Antes de aprobar el contenido";
   const items = blockers.map((item) => "<li>" + escapeHtml(item) + "</li>").join("");
   return '<div class="flag-list quality-gate"><strong>' + escapeHtml(heading) + "</strong><ul>" + items + "</ul></div>";
 }
 
-function qualityReviewMessage(gate, kind) {
+function qualityReviewMessage(gate, kind, nextStep = "continuar") {
   const blockers = (gate?.blockers || []).map((item) => "• " + item).join("\n");
-  return "Este " + kind + " tiene controles pendientes.\n\n" + blockers + "\n\n¿Confirmas que has realizado la revisión humana y quieres registrarla?";
+  return "Este " + kind + " tiene controles pendientes.\n\n" + blockers + "\n\n¿Confirmas que has realizado la revisión humana y quieres registrarla antes de " + nextStep + "?";
+}
+
+function isBlogApprovedForWordPress(blog) {
+  return ["ready", "scheduled"].includes(blog?.status);
 }
 
 function safeInternalHref(value) {

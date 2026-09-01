@@ -43,7 +43,7 @@ Reconocer revisión de calidad → preparar para calendario → reservar fecha/h
 Publicación manual en la red o CMS correspondiente
 ```
 
-El calendario organiza la agenda editorial. No publica automáticamente en LinkedIn, X, Facebook ni en el CMS: esa integración no está activada actualmente.
+El calendario organiza la agenda editorial. No publica automáticamente en LinkedIn, X, Facebook ni en el CMS. Cuando esté configurada la conexión de WordPress, ésta sólo crea o actualiza un **borrador**: la programación y publicación final se realizan allí de forma manual.
 
 ## Crear un post para redes
 
@@ -133,9 +133,15 @@ Selecciona el artículo en el catálogo y revisa:
 - Brief y fuentes que lo sustentan.
 - Figuras previstas y su coherencia con el contenido.
 
-Puedes **copiar HTML** o **descargar HTML** para llevarlo al CMS. Antes de hacerlo, confirma que el CMS no alterará el marcado y que las imágenes descargadas se subirán al alojamiento correspondiente.
+Puedes **copiar HTML** o **descargar HTML** si necesitas una entrega manual. Antes de hacerlo, confirma que el CMS no alterará el marcado y que las imágenes descargadas se subirán al alojamiento correspondiente.
 
-Usa **Preparar para calendario** sólo después de aceptar la revisión de calidad. Eliminar un artículo es irreversible desde la interfaz: confirma primero que no se necesitará como referencia o versión base.
+Para el flujo conectado con WordPress, usa siempre esta secuencia visible en la ficha del blog:
+
+1. **Aprobar contenido**: registra la revisión editorial y deja el artículo listo para WordPress. Si hay una puerta de calidad, revisa sus avisos antes de confirmarla.
+2. **Crear borrador en WordPress**: envía o actualiza el borrador con el contenido y las imágenes optimizadas. Este paso nunca publica el artículo. Si el botón está desactivado, falta aprobar el contenido o configurar WordPress en el servidor.
+3. **Reservar fecha**: se realiza desde **Calendario editorial** y sólo organiza la agenda interna. Después de revisar el borrador, programa o publica manualmente desde WordPress según el proceso acordado por el equipo.
+
+Eliminar un artículo es irreversible desde la interfaz: confirma primero que no se necesitará como referencia o versión base.
 
 ### Figuras de blog
 
@@ -167,7 +173,7 @@ Se admiten `.txt`, `.md`, `.pdf`, `.docx`, `.csv` y `.xlsx`, con un máximo de 5
 3. Selecciona pieza, fecha y hora.
 4. Pulsa **Añadir** o **Reprogramar** y verifica el resultado en la vista mensual o de lista.
 
-El calendario es la agenda interna. Al llegar la fecha, publica manualmente en la plataforma correspondiente y deja constancia del resultado según el proceso del equipo.
+El calendario es la agenda interna. Al llegar la fecha, publica manualmente en la plataforma correspondiente. Para un blog, revisa primero su borrador en WordPress y programa o publica allí según el proceso del equipo; reservar la fecha en Nexia GP no cambia el estado del artículo en la web.
 
 ## Automatización, ajustes y prompts
 
@@ -215,6 +221,7 @@ Los prompts nuevos sólo se aplican a generaciones posteriores. No deben contene
 | Pantalla vacía o desactualizada | Recarga la URL estable. Si continúa, anota hora y captura; no generes contenido para probar. |
 | Un trabajo tarda | Espera a que finalice y actualiza *Revisión editorial* o *Blogs web*. No lances encargos duplicados. |
 | No puedo preparar una pieza | Lee los bloqueos de calidad y confirma la revisión después de corregirlos. |
+| No puedo crear el borrador de WordPress | Primero pulsa **Aprobar contenido**. Si el botón sigue desactivado, la conexión de WordPress no está configurada en el servidor. |
 | Imagen no aparece | Actualiza, prueba descargar el PNG y comunica ID/título; no reintentes en cadena. |
 | No se publica al programar | Es el comportamiento actual: el calendario no tiene publicación automática integrada. |
 | Quiero borrar contenido o una fuente | Detente y confirma decisión editorial y copia cuando sea necesaria. |

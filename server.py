@@ -32,6 +32,7 @@ from src.ai.services.image_service import (
     uses_ephemeral_image_work_dir,
 )
 from src.ai.services.cloudinary_service import CloudinaryService
+from src.ai.services.wordpress_service import WordPressError, WordPressService
 from src.ai.services.frame_composer import compose_branded_frame
 from src.ai.services.openai_client import OpenAIClient
 from src.ai.services.context_helpers import normalize_hashtags
@@ -203,6 +204,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                         "ok": True,
                         "hasOpenAIKey": bool(os.getenv("OPENAI_API_KEY")),
                         "hasSocialWebhook": bool(os.getenv("SOCIAL_WEBHOOK_URL")),
+                        "hasWordPressConfig": WordPressService().enabled,
                         "model": db["settings"].get("model") or os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
                         "vectorStoreId": db["settings"].get("vectorStoreId", ""),
                     }
@@ -419,6 +421,18 @@ class AppHandler(SimpleHTTPRequestHandler):
 
             if self.command == "POST" and path == "/api/jobs/blog":
                 self.send_json(start_generation_job("blog", self.read_json()), status=202)
+                return
+
+            if self.command == "POST" and path == "/api/wordpress/validate":
+                self.require_wordpress_sync_access()
+                self.send_json(validate_wordpress_connection())
+                return
+
+            wordpress_draft_match = re.match(r"^/api/blogs/([^/]+)/wordpress/draft$", path)
+            if wordpress_draft_match and self.command == "POST":
+                self.require_wordpress_sync_access()
+                self.read_json()  # Reserve a request body for future explicit sync options.
+                self.send_json(sync_blog_to_wordpress_draft(wordpress_draft_match.group(1)))
                 return
 
             blog_match = re.match(r"^/api/blogs/([^/]+)$", path)
@@ -703,6 +717,15 @@ class AppHandler(SimpleHTTPRequestHandler):
             raise ApiError("El cron no está configurado.", 503, "cron_not_configured")
         if self.headers.get("authorization", "") != f"Bearer {secret}":
             raise ApiError("Cron no autorizado.", 401, "cron_unauthorized")
+
+    def require_wordpress_sync_access(self) -> None:
+        """Do not let a publicly browsable editor trigger an external CMS write."""
+        if os.getenv("VERCEL") == "1" and not auth_is_required():
+            raise ApiError(
+                "Para sincronizar WordPress activa la autenticación de Nexia GP en producción.",
+                503,
+                "wordpress_auth_required",
+            )
 
     def send_json(self, payload: dict, status: int = 200, extra_headers: dict[str, str] | None = None) -> None:
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
@@ -1486,6 +1509,130 @@ def patch_blog(blog_id: str, body: dict) -> dict:
                 blog.pop("scheduledFor", None)
         blog["updatedAt"] = now_iso()
         return {"ok": True, "blog": blog, "state": decorate_state(db)}
+
+
+def _wordpress_optional_id(name: str) -> int | None:
+    raw = str(os.getenv(name, "")).strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ApiError(f"La configuración {name} debe ser un identificador numérico.", 503, "wordpress_configuration") from exc
+    return value if value > 0 else None
+
+
+def wordpress_public_config() -> dict:
+    """Return editor-safe status only; credentials never leave the server."""
+    config = WordPressService().public_config()
+    config["imageTargetBytes"] = 200 * 1024
+    config["imageMaximumBytes"] = 1 * 1024 * 1024
+    config["publicationCadenceDays"] = 15
+    config["scheduledPublishingEnabled"] = False
+    return config
+
+
+def validate_wordpress_connection() -> dict:
+    service = WordPressService()
+    if not service.enabled:
+        raise ApiError("La conexión con WordPress no está configurada en el servidor.", 503, "wordpress_not_configured")
+    try:
+        verification = service.validate()
+    except WordPressError as exc:
+        raise ApiError(exc.args[0], 502, "wordpress_connection_failed") from exc
+    return {"ok": True, "wordpress": {**wordpress_public_config(), "verified": True, "roles": verification["roles"]}}
+
+
+def wordpress_image_bytes(image: dict) -> tuple[bytes, str, str]:
+    """Load the canonical editorial image without exposing a private asset URL."""
+    raw_url = str(image.get("url") or "")
+    parsed = urllib.parse.urlparse(raw_url)
+    if parsed.scheme or parsed.netloc or not parsed.path.startswith("/images/"):
+        raise WordPressError("La imagen no tiene un activo editorial válido para enviarse a WordPress.")
+    filename = urllib.parse.unquote(parsed.path[len("/images/"):])
+    if not filename or "/" in filename or "\\" in filename or filename in {".", ".."}:
+        raise WordPressError("La imagen del blog no se pudo localizar de forma segura.")
+    if SUPABASE_STORE.enabled:
+        try:
+            data, headers = SUPABASE_STORE.download_object("editorial-images", filename)
+        except SupabaseStoreError as exc:
+            raise WordPressError("No se pudo recuperar una imagen del almacenamiento editorial.") from exc
+        content_type = headers.get("Content-Type") or headers.get("content-type") or mime_from_filename(filename)
+        return data, content_type, filename
+    target = (IMAGES_DIR / filename).resolve()
+    if not is_path_within(target, IMAGES_DIR) or not target.is_file():
+        raise WordPressError("No se pudo recuperar una imagen del almacenamiento editorial.")
+    return target.read_bytes(), mime_from_filename(filename), filename
+
+
+def sync_blog_to_wordpress_draft(blog_id: str) -> dict:
+    """Upload a reviewed blog as a WordPress draft and persist only public traceability."""
+    service = WordPressService()
+    if not service.enabled:
+        raise ApiError("La conexión con WordPress no está configurada en el servidor.", 503, "wordpress_not_configured")
+    snapshot = read_db()
+    blog = next((item for item in snapshot.get("blogs", []) if item.get("id") == blog_id), None)
+    if not blog:
+        raise ApiError("Blog no encontrado", 404)
+    refresh_blog_quality_gate(blog)
+    if has_unacknowledged_quality_gate(blog):
+        raise ApiError(
+            "El blog requiere una revisión humana registrada antes de enviarlo a WordPress.",
+            409,
+            "quality_review_required",
+        )
+    if blog.get("status") not in {"ready", "scheduled"}:
+        raise ApiError(
+            "Aprueba primero el contenido para WordPress antes de crear su borrador.",
+            409,
+            "blog_not_ready_for_wordpress",
+        )
+    try:
+        sync = service.sync_blog_draft(
+            blog,
+            image_loader=wordpress_image_bytes,
+            category_id=_wordpress_optional_id("WORDPRESS_DEFAULT_CATEGORY_ID"),
+            author_id=_wordpress_optional_id("WORDPRESS_AUTHOR_ID"),
+        )
+    except WordPressError as exc:
+        message = exc.args[0] if exc.args else "No se pudo sincronizar el borrador con WordPress."
+        with transaction() as fresh:
+            target = next((item for item in fresh.get("blogs", []) if item.get("id") == blog_id), None)
+            if target:
+                target["wordpress"] = {
+                    **(target.get("wordpress") if isinstance(target.get("wordpress"), dict) else {}),
+                    "lastError": message,
+                    "lastAttemptAt": now_iso(),
+                }
+                target["updatedAt"] = now_iso()
+        raise ApiError(message, 502, "wordpress_sync_failed") from exc
+
+    with transaction() as fresh:
+        target = next((item for item in fresh.get("blogs", []) if item.get("id") == blog_id), None)
+        if not target:
+            raise ApiError("Blog no encontrado", 404)
+        figures_by_id = {str(item.get("figure_id") or ""): item for item in target.get("figures", [])}
+        for figure_id, wordpress_figure in sync["figures"].items():
+            if figure_id in figures_by_id:
+                figures_by_id[figure_id]["wordpress"] = wordpress_figure
+        target["wordpress"] = {
+            **(target.get("wordpress") if isinstance(target.get("wordpress"), dict) else {}),
+            **sync["post"],
+            "contentHash": sync["contentHash"],
+            "lastSyncAt": now_iso(),
+            "lastAttemptAt": now_iso(),
+            "lastError": None,
+            "uploadedImages": sync["uploadedImages"],
+            "optimizedBytes": sync["optimizedBytes"],
+        }
+        target["updatedAt"] = now_iso()
+        state = decorate_state(fresh)
+        return {
+            "ok": True,
+            "blog": target,
+            "wordpress": target["wordpress"],
+            "state": state,
+        }
 
 
 def delete_blog(blog_id: str) -> dict:
@@ -3052,6 +3199,7 @@ def decorate_state(db: dict) -> dict:
         "ok": True,
         "hasOpenAIKey": bool(os.getenv("OPENAI_API_KEY")),
         "hasSocialWebhook": bool(os.getenv("SOCIAL_WEBHOOK_URL")),
+        "wordpress": wordpress_public_config(),
         "client": db.get("client", {}),
         "settings": settings,
         "themes": db.get("themes", []),
