@@ -4,6 +4,27 @@ Formato: por sesion y por fase. Cada entrada referencia el commit (`git log`).
 
 ---
 
+## Sesión 10 — 2026-09-01 — Integración segura de WordPress
+
+- Se conecta WordPress (`nexiagp.com`) a la aplicación para crear y actualizar borradores de blog
+  con contenido, figuras optimizadas, imagen destacada y trazabilidad de retorno. La integración
+  no publica ni programa entradas.
+- Supabase queda establecido como backend de estado y Storage de producción; se completó la
+  migración de los activos históricos y se retiraron los accesos temporales usados exclusivamente
+  para ella.
+- Se activa autenticación de Nexia GP en producción para impedir que una app pública pueda lanzar
+  escrituras hacia WordPress.
+- Se corrige `f939324`: recalcular la quality gate antes de sincronizar ya no borra una revisión
+  editorial humana válida. Los cambios de título, slug, metadatos o HTML siguen exigiendo una
+  revisión nueva de forma intencional.
+- Se valida el flujo real con tres artículos aprobados, creados como `draft` en WordPress. Rank
+  Math se mantiene como comprobación manual porque sus metacampos no están registrados como
+  editables por la API REST actual.
+- Se añaden el runbook operativo de WordPress y referencias actualizadas desde README, guía de uso,
+  arquitectura y estado de continuidad.
+
+---
+
 ## Sesión 9 — 2026-08-24 — Guía editorial y README de continuidad
 
 - Se añade `docs/GUIA_DE_USO.md`, una guía completa para el equipo editorial: creación y revisión de posts, imágenes, blogs, biblioteca, calendario, automatización, prompts, costes y respuesta inicial ante incidencias.

@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#261e1e">
+    <title>Reunión Marketing · WordPress — Nexia GP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Questrial&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --ink: #261e1e;
+        --ink-soft: #5b5b5b;
+        --paper: #f6f2ed;
+        --paper-deep: #e8dfd5;
+        --panel: #fffdf9;
+        --line: #d7cec5;
+        --teal: #008d94;
+        --teal-pale: #d9f0ef;
+        --teal-dark: #006d73;
+        --gold: #c89642;
+        --gold-pale: #fff2d8;
+        --rose: #9c4c43;
+        --shadow: 0 16px 50px rgba(38, 30, 30, .09);
+        --display: "Questrial", Arial, sans-serif;
+        --body: "Source Sans 3", Arial, sans-serif;
+        --mono: "DM Mono", Consolas, monospace;
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 93% 0%, rgba(0, 141, 148, .11), transparent 27rem),
+          linear-gradient(90deg, rgba(38, 30, 30, .025) 1px, transparent 1px),
+          var(--paper);
+        background-size: auto, 28px 28px, auto;
+        font-family: var(--body);
+        font-size: 17px;
+        line-height: 1.55;
+      }
+
+      a { color: inherit; text-decoration-color: rgba(0, 141, 148, .55); text-underline-offset: 3px; }
+      a:hover { color: var(--teal-dark); }
+      a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outline-offset: 3px; }
+
+      .topbar {
+        min-height: 62px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 10px max(24px, calc((100vw - 1240px) / 2));
+        color: #fff;
+        background: rgba(38, 30, 30, .96);
+        backdrop-filter: blur(14px);
+        border-bottom: 1px solid rgba(255, 255, 255, .12);
+      }
+      .brand { display: flex; align-items: center; gap: 11px; font: 500 13px/1 var(--mono); letter-spacing: .11em; text-decoration: none; }
+      .brand-mark { display: grid; width: 30px; height: 30px; place-items: center; color: var(--ink); background: var(--teal); border-radius: 50%; font: 18px/1 var(--display); letter-spacing: 0; }
+      .topbar-actions { display: flex; align-items: center; gap: 18px; }
+      .topbar time { color: #ddd3cb; font: 500 11px/1 var(--mono); letter-spacing: .08em; }
+      .print-button { border: 1px solid rgba(255,255,255,.34); border-radius: 999px; padding: 8px 13px; color: #fff; background: transparent; font: 600 12px/1 var(--body); cursor: pointer; }
+      .print-button:hover { border-color: var(--teal); background: var(--teal); }
+
+      .page { width: min(1240px, calc(100% - 48px)); margin: 0 auto 88px; }
+      .hero {
+        display: grid;
+        grid-template-columns: 1.22fr .78fr;
+        gap: 48px;
+        position: relative;
+        overflow: hidden;
+        margin: 32px 0 26px;
+        padding: clamp(34px, 5vw, 76px);
+        color: white;
+        background: var(--ink);
+        box-shadow: var(--shadow);
+      }
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: auto -10% -69% auto;
+        width: 540px;
+        aspect-ratio: 1;
+        border: 1px solid rgba(255,255,255,.2);
+        border-radius: 50%;
+        box-shadow: 0 0 0 54px rgba(255,255,255,.045), 0 0 0 108px rgba(255,255,255,.035), 0 0 0 162px rgba(255,255,255,.025);
+        pointer-events: none;
+      }
+      .hero-copy, .route-board { position: relative; z-index: 1; }
+      .eyebrow { margin: 0 0 16px; color: #b8e5e3; font: 500 11px/1.35 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+      h1, h2, h3, p { margin-top: 0; }
+      h1 { max-width: 650px; margin-bottom: 22px; font: clamp(40px, 5.2vw, 72px)/.94 var(--display); letter-spacing: -.035em; }
+      .hero-lead { max-width: 610px; margin-bottom: 0; color: #e3dcd7; font-size: clamp(18px, 2vw, 22px); line-height: 1.35; }
+      .hero-lead strong { color: #fff; font-weight: 600; }
+      .route-board { align-self: end; max-width: 375px; margin-left: auto; }
+      .route-title { margin-bottom: 12px; color: #dacfc6; font: 500 10px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+      .route { position: relative; padding: 4px 0; }
+      .route::before { content: ""; position: absolute; left: 11px; top: 19px; bottom: 19px; width: 1px; background: rgba(255,255,255,.32); }
+      .route-step { position: relative; display: grid; grid-template-columns: 24px 1fr; gap: 12px; align-items: center; min-height: 58px; }
+      .route-dot { width: 23px; height: 23px; border: 1px solid rgba(255,255,255,.55); border-radius: 50%; background: var(--ink); }
+      .route-step.current .route-dot { border: 6px solid var(--teal); background: #e7ffff; box-shadow: 0 0 0 5px rgba(0,173,182,.2); }
+      .route-label { color: #fff; font-size: 17px; line-height: 1.1; }
+      .route-step.current .route-label { color: #b8f0ee; font-weight: 700; }
+      .route-detail { display: block; margin-top: 3px; color: #d6cdc5; font-size: 13px; }
+
+      .thesis-strip { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; padding: 21px 26px; margin-bottom: 38px; border-left: 5px solid var(--teal); color: var(--ink); background: var(--teal-pale); }
+      .thesis-tag { color: var(--teal-dark); font: 500 10px/1.2 var(--mono); letter-spacing: .13em; text-transform: uppercase; }
+      .thesis-strip p { margin: 0; font-size: 18px; line-height: 1.35; }
+
+      .content-shell { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 44px; align-items: start; }
+      .meeting-nav { position: sticky; top: 84px; padding: 22px 0 22px 22px; border-left: 1px solid var(--line); }
+      .meeting-nav p { margin: 0 0 14px; color: var(--ink-soft); font: 500 10px/1.25 var(--mono); letter-spacing: .13em; text-transform: uppercase; }
+      .meeting-nav a { display: block; padding: 7px 0 7px 13px; color: var(--ink-soft); font-size: 14px; text-decoration: none; border-left: 2px solid transparent; }
+      .meeting-nav a:hover { color: var(--ink); border-left-color: var(--teal); }
+      .meeting-nav .nav-note { margin: 21px 0 0 13px; color: var(--ink-soft); font-size: 13px; line-height: 1.35; }
+      .meeting-nav .nav-note strong { color: var(--ink); }
+
+      .section { scroll-margin-top: 88px; padding: 0 0 52px; }
+      .section + .section { padding-top: 44px; border-top: 1px solid var(--line); }
+      .section-heading { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 18px; margin-bottom: 24px; }
+      .section-number { padding-top: 5px; color: var(--teal); font: 500 12px/1 var(--mono); letter-spacing: .08em; }
+      h2 { margin: 0; font: clamp(28px, 3.5vw, 43px)/1 var(--display); letter-spacing: -.025em; }
+      .section-intro { max-width: 720px; margin: 0 0 26px 72px; color: var(--ink-soft); font-size: 19px; line-height: 1.45; }
+      .section-intro code { padding: 2px 5px; color: var(--ink); background: var(--paper-deep); font: 12px/1 var(--mono); }
+
+      .asset-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; overflow: hidden; margin-left: 72px; background: var(--line); border: 1px solid var(--line); }
+      .asset { min-height: 107px; padding: 20px; background: var(--panel); }
+      .asset-symbol { display: inline-grid; width: 28px; height: 28px; place-items: center; margin-bottom: 11px; color: var(--teal-dark); background: var(--teal-pale); border-radius: 50%; font: 500 11px/1 var(--mono); }
+      .asset p { margin: 0; font-size: 16px; line-height: 1.26; }
+      .asset strong { font-weight: 700; }
+
+      .phase-card { position: relative; margin-left: 72px; padding: 32px; overflow: hidden; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 9px 28px rgba(38,30,30,.045); }
+      .phase-card::before { content: "PILOTO"; position: absolute; top: 20px; right: -7px; color: rgba(0,141,148,.07); font: 70px/1 var(--display); letter-spacing: -.04em; }
+      .phase-flow { position: relative; display: grid; grid-template-columns: 1fr 28px 1fr 28px 1fr; gap: 11px; align-items: stretch; }
+      .phase-node { min-height: 137px; padding: 19px; border: 1px solid var(--line); background: #fff; }
+      .phase-node.current { border: 2px solid var(--teal); background: #f3fdfc; box-shadow: inset 0 -5px var(--teal); }
+      .phase-node span { display: block; margin-bottom: 17px; color: var(--ink-soft); font: 500 10px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+      .phase-node b { display: block; font: 22px/1.05 var(--display); }
+      .phase-node small { display: block; margin-top: 10px; color: var(--ink-soft); font-size: 14px; line-height: 1.2; }
+      .flow-arrow { display: grid; place-items: center; color: var(--teal); font-size: 22px; }
+      .phase-explainer { position: relative; max-width: 780px; margin: 27px 0 0; font-size: 18px; line-height: 1.45; }
+      .phase-explainer strong { color: var(--teal-dark); }
+
+      .mapping { width: calc(100% - 72px); margin-left: 72px; border-collapse: collapse; background: var(--panel); box-shadow: 0 8px 24px rgba(38,30,30,.04); }
+      .mapping caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+      .mapping th, .mapping td { padding: 16px 19px; vertical-align: top; border: 1px solid var(--line); text-align: left; }
+      .mapping th { color: #fff; background: var(--ink); font: 500 11px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+      .mapping td:first-child { width: 37%; color: var(--teal-dark); font-weight: 700; }
+      .mapping td { font-size: 16px; line-height: 1.32; }
+      .mapping-note { width: calc(100% - 72px); margin: 15px 0 0 72px; padding: 15px 18px; border-left: 3px solid var(--gold); color: #725014; background: var(--gold-pale); font-size: 15px; line-height: 1.35; }
+
+      .decision-list { display: grid; gap: 12px; margin-left: 72px; }
+      .decision { display: grid; grid-template-columns: 30px 1fr; gap: 16px; padding: 18px 20px; border: 1px solid var(--line); background: var(--panel); transition: border-color .18s ease, transform .18s ease; }
+      .decision:hover { border-color: #96c9c8; transform: translateX(3px); }
+      .decision input { width: 19px; height: 19px; margin: 3px 0 0; accent-color: var(--teal); cursor: pointer; }
+      .decision label { cursor: pointer; }
+      .decision b { display: block; margin-bottom: 4px; font-size: 17px; }
+      .decision span { display: block; color: var(--ink-soft); font-size: 16px; line-height: 1.32; }
+      .decision:has(input:checked) { border-color: var(--teal); background: #f5fdfc; }
+      .decision:has(input:checked) label { text-decoration: line-through; text-decoration-color: var(--teal); }
+
+      .access-grid { display: grid; grid-template-columns: minmax(0, 1fr) 285px; gap: 25px; margin-left: 72px; }
+      .access-list { display: grid; gap: 1px; border: 1px solid var(--line); background: var(--line); }
+      .access-item { display: grid; grid-template-columns: 29px 1fr; gap: 12px; padding: 15px 18px; background: var(--panel); }
+      .access-item b { color: var(--teal-dark); font: 500 12px/1.4 var(--mono); }
+      .access-item p { margin: 0; font-size: 16px; line-height: 1.32; }
+      .security-note { padding: 25px; color: #fff; background: var(--ink); }
+      .security-note .mini-kicker { margin: 0 0 16px; color: #aae3df; font: 500 10px/1.2 var(--mono); letter-spacing: .13em; text-transform: uppercase; }
+      .security-note h3 { margin-bottom: 12px; font: 27px/1.05 var(--display); }
+      .security-note p { margin: 0; color: #e3d9d2; font-size: 16px; line-height: 1.35; }
+      .security-note strong { color: #fff; }
+
+      .acceptance-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin-left: 72px; border: 1px solid var(--line); background: var(--line); }
+      .acceptance { min-height: 144px; padding: 20px; background: var(--panel); }
+      .acceptance-id { display: block; margin-bottom: 25px; color: var(--teal); font: 500 11px/1 var(--mono); }
+      .acceptance p { margin: 0; font-size: 16px; line-height: 1.3; }
+
+      .opening-script { position: relative; margin-left: 72px; padding: 36px 44px 36px 75px; color: var(--ink); background: #e7dfd6; }
+      .opening-script::before { content: "“"; position: absolute; left: 22px; top: 13px; color: var(--teal); font: 92px/.85 Georgia, serif; }
+      .opening-script p { max-width: 810px; margin: 0; font-size: clamp(20px, 2.5vw, 28px); line-height: 1.28; }
+      .opening-script footer { margin-top: 18px; color: var(--ink-soft); font: 500 10px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+
+      .next-step { display: grid; grid-template-columns: 82px 1fr; gap: 23px; margin-left: 72px; padding: 30px; border: 1px solid #8ec8c5; background: var(--teal-pale); }
+      .next-step-label { color: var(--teal-dark); font: 500 10px/1.25 var(--mono); letter-spacing: .13em; text-transform: uppercase; }
+      .next-step p { max-width: 800px; margin: 0; font-size: 19px; line-height: 1.4; }
+
+      .reference-list { display: grid; gap: 8px; margin: 0 0 0 72px; padding: 0; list-style: none; }
+      .reference-list a { display: grid; grid-template-columns: 19px 1fr; gap: 10px; align-items: start; padding: 15px 18px; border: 1px solid var(--line); background: var(--panel); font-size: 16px; text-decoration: none; }
+      .reference-list a::before { content: "↗"; color: var(--teal); font-weight: 700; }
+      .reference-list strong { display: block; }
+      .reference-list span { color: var(--ink-soft); font-size: 14px; }
+
+      .footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 12px; padding: 22px 0 0; color: var(--ink-soft); border-top: 1px solid var(--line); font: 500 10px/1.35 var(--mono); letter-spacing: .05em; text-transform: uppercase; }
+
+      @media (max-width: 850px) {
+        .topbar { padding: 10px 20px; }
+        .topbar time { display: none; }
+        .page { width: min(100% - 30px, 740px); }
+        .hero { grid-template-columns: 1fr; gap: 36px; padding: 34px 27px; }
+        .route-board { width: 100%; max-width: none; margin: 0; }
+        .content-shell { display: block; }
+        .meeting-nav { display: none; }
+        .section-heading { grid-template-columns: 42px 1fr; gap: 12px; }
+        .section-intro, .asset-list, .phase-card, .mapping, .mapping-note, .decision-list, .access-grid, .acceptance-grid, .opening-script, .next-step, .reference-list { width: 100%; margin-left: 0; }
+        .asset-list, .access-grid { grid-template-columns: 1fr; }
+        .phase-flow { grid-template-columns: 1fr; gap: 0; }
+        .flow-arrow { min-height: 32px; transform: rotate(90deg); }
+        .acceptance-grid { grid-template-columns: 1fr 1fr; }
+      }
+
+      @media (max-width: 530px) {
+        body { font-size: 16px; background-size: auto, 20px 20px, auto; }
+        .topbar-actions { gap: 8px; }
+        .print-button { padding: 7px 10px; }
+        .brand { font-size: 11px; }
+        .hero { margin-top: 18px; }
+        h1 { font-size: 43px; }
+        .thesis-strip { grid-template-columns: 1fr; gap: 8px; padding: 18px; }
+        .section { padding-bottom: 38px; }
+        .section + .section { padding-top: 36px; }
+        .section-intro { font-size: 17px; }
+        .asset-list, .acceptance-grid { grid-template-columns: 1fr; }
+        .phase-card { padding: 18px; }
+        .mapping { display: block; overflow-x: auto; white-space: normal; }
+        .mapping th, .mapping td { min-width: 174px; padding: 13px; }
+        .decision { gap: 11px; padding: 16px; }
+        .opening-script { padding: 31px 22px 30px 57px; }
+        .next-step { grid-template-columns: 1fr; gap: 9px; padding: 23px; }
+        .footer { display: block; }
+        .footer p + p { margin-top: 8px; }
+      }
+
+      @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+      @media print {
+        @page { size: A4; margin: 12mm; }
+        body { background: #fff; font-size: 11pt; }
+        .topbar, .meeting-nav { display: none; }
+        .page { width: 100%; margin: 0; }
+        .hero { margin: 0 0 7mm; padding: 15mm; box-shadow: none; break-inside: avoid; }
+        .hero::after { display: none; }
+        h1 { font-size: 37pt; }
+        .content-shell { display: block; }
+        .section { break-inside: avoid; padding-bottom: 9mm; }
+        .section + .section { padding-top: 8mm; }
+        .section-intro, .asset-list, .phase-card, .mapping, .mapping-note, .decision-list, .access-grid, .acceptance-grid, .opening-script, .next-step, .reference-list { width: calc(100% - 18mm); margin-left: 18mm; }
+        .phase-card, .decision, .access-item, .acceptance, .opening-script, .next-step, .reference-list a { break-inside: avoid; }
+        .decision:hover { transform: none; }
+        a { text-decoration: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#inicio" aria-label="Volver al inicio">
+        <span class="brand-mark" aria-hidden="true">N</span>
+        NEXIA GP · CONTENIDO &amp; CRECIMIENTO
+      </a>
+      <div class="topbar-actions">
+        <time datetime="2026-09-01">REUNIÓN · 01 SEP 2026</time>
+        <button class="print-button" type="button" onclick="window.print()">Imprimir / PDF</button>
+      </div>
+    </header>
+
+    <main class="page" id="inicio">
+      <section class="hero" aria-labelledby="page-title">
+        <div class="hero-copy">
+          <p class="eyebrow">Reunión con Marketing · Automatización editorial</p>
+          <h1 id="page-title">Del criterio de la app al borrador de WordPress.</h1>
+          <p class="hero-lead">Acordar un primer flujo seguro que elimina el copia y pega, <strong>sin quitar a Marketing el control final</strong> sobre marca y publicación.</p>
+        </div>
+        <div class="route-board" aria-label="Flujo editorial recomendado">
+          <p class="route-title">La primera fase</p>
+          <div class="route">
+            <div class="route-step">
+              <span class="route-dot" aria-hidden="true"></span>
+              <div class="route-label">Generar en la app <span class="route-detail">Contenido, SEO, imágenes y fuentes</span></div>
+            </div>
+            <div class="route-step">
+              <span class="route-dot" aria-hidden="true"></span>
+              <div class="route-label">Aprobar en la app <span class="route-detail">Puerta de calidad y revisión humana</span></div>
+            </div>
+            <div class="route-step current">
+              <span class="route-dot" aria-hidden="true"></span>
+              <div class="route-label">Borrador WordPress <span class="route-detail">Marketing revisa, programa o publica</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="thesis-strip" role="note">
+        <span class="thesis-tag">Estado implementado</span>
+        <p><strong>El flujo de borradores ya está activo y validado con tres artículos reales.</strong> No existe publicación autónoma; Marketing revisa Rank Math, programa o publica desde WordPress.</p>
+      </div>
+
+      <div class="content-shell">
+        <nav class="meeting-nav" aria-label="Índice de la reunión">
+          <p>Recorrido de la reunión</p>
+          <a href="#punto-partida">Punto de partida</a>
+          <a href="#propuesta">Primera fase</a>
+          <a href="#integracion">Qué se integra</a>
+          <a href="#decisiones">Decisiones</a>
+          <a href="#accesos">Accesos</a>
+          <a href="#piloto">Piloto</a>
+          <a href="#guion">Guion</a>
+          <a href="#siguiente">Siguiente paso</a>
+          <p class="nav-note"><strong>Resultado:</strong><br>piloto validado; tres borradores sin publicar.</p>
+        </nav>
+
+        <div>
+          <section class="section" id="punto-partida" aria-labelledby="punto-partida-title">
+            <div class="section-heading">
+              <span class="section-number">01</span>
+              <h2 id="punto-partida-title">Punto de partida</h2>
+            </div>
+            <p class="section-intro">La aplicación ya hace el trabajo editorial y la conexión de escritura está activa: un blog revisado crea o actualiza un borrador de WordPress con sus imágenes. La API de la web responde en <a href="https://nexiagp.com/wp-json/wp/v2/posts" target="_blank" rel="noreferrer"><code>nexiagp.com/wp-json/wp/v2/posts</code></a>.</p>
+            <div class="asset-list" aria-label="Elementos que ya genera la aplicación">
+              <article class="asset"><span class="asset-symbol">01</span><p><strong>Artículo listo</strong><br>HTML semántico, redactado para publicar.</p></article>
+              <article class="asset"><span class="asset-symbol">02</span><p><strong>Paquete SEO</strong><br>Título, slug, descripción, Open Graph y JSON-LD.</p></article>
+              <article class="asset"><span class="asset-symbol">03</span><p><strong>Visuales y enlaces</strong><br>Imágenes, caption, alt, CTA y enlaces internos.</p></article>
+              <article class="asset"><span class="asset-symbol">04</span><p><strong>Control editorial</strong><br>Fuentes recuperadas y revisión humana antes de avanzar.</p></article>
+            </div>
+          </section>
+
+          <section class="section" id="propuesta" aria-labelledby="propuesta-title">
+            <div class="section-heading">
+              <span class="section-number">02</span>
+              <h2 id="propuesta-title">Primera fase: un traspaso seguro</h2>
+            </div>
+            <p class="section-intro">El propósito del primer desarrollo es llevar el contenido validado a un borrador en el WordPress que Marketing ya conoce. No activamos publicación automática en la web.</p>
+            <div class="phase-card">
+              <div class="phase-flow" aria-label="Proceso del piloto">
+                <div class="phase-node"><span>Antes</span><b>Generar</b><small>La app prepara el artículo y sus activos.</small></div>
+                <span class="flow-arrow" aria-hidden="true">→</span>
+                <div class="phase-node current"><span>Integración</span><b>Enviar a borrador</b><small>Sube medios y crea una única entrada.</small></div>
+                <span class="flow-arrow" aria-hidden="true">→</span>
+                <div class="phase-node"><span>Decisión humana</span><b>Revisar y publicar</b><small>Marketing conserva el último “sí”.</small></div>
+              </div>
+              <p class="phase-explainer"><strong>Ventaja práctica:</strong> se evita copiar y pegar, se cargan las imágenes y el post queda listo en WordPress. Tras validar varios artículos, se podrá valorar la programación automática como una segunda fase.</p>
+            </div>
+          </section>
+
+          <section class="section" id="integracion" aria-labelledby="integracion-title">
+            <div class="section-heading">
+              <span class="section-number">03</span>
+              <h2 id="integracion-title">Qué hará la integración</h2>
+            </div>
+            <p class="section-intro">La app enviará contenido y metadatos; WordPress devolverá un identificador y una URL para que cada envío quede trazado y pueda repetirse sin duplicados.</p>
+            <table class="mapping">
+              <caption>Correspondencia entre la app de Nexia y WordPress</caption>
+              <thead><tr><th>Salida de la app</th><th>Destino en WordPress</th></tr></thead>
+              <tbody>
+                <tr><td>Título y slug</td><td>Título y URL propuesta del post.</td></tr>
+                <tr><td>HTML del artículo</td><td>Contenido de la entrada.</td></tr>
+                <tr><td>Imagen seleccionada</td><td>Biblioteca de medios y, si se aprueba, imagen destacada.</td></tr>
+                <tr><td>Caption y alt</td><td>Pie y texto alternativo de cada imagen.</td></tr>
+                <tr><td>Extracto / descripción</td><td>Extracto del post, según la decisión de Marketing.</td></tr>
+                <tr><td>Categoría, etiquetas y autor</td><td>Taxonomías y autor acordados.</td></tr>
+                <tr><td>Meta título, descripción, canonical y JSON-LD</td><td>Plugin SEO o campos SEO de la web, según la configuración actual.</td></tr>
+                <tr><td>ID y URL de WordPress</td><td>Se guardan de vuelta en la app para evitar duplicados y permitir reintentos seguros.</td></tr>
+              </tbody>
+            </table>
+            <p class="mapping-note">El estado inicial será <strong>draft</strong>. Marketing decide cuándo pasarlo a <strong>publish</strong> o programar una fecha; la API admite contenido, slug, extracto, imagen destacada y esos estados.</p>
+          </section>
+
+          <section class="section" id="decisiones" aria-labelledby="decisiones-title">
+            <div class="section-heading">
+              <span class="section-number">04</span>
+              <h2 id="decisiones-title">Decisiones que cerrar hoy</h2>
+            </div>
+            <p class="section-intro">Puedes marcar cada punto durante la reunión. El objetivo es salir con una definición suficiente para realizar un único piloto, no decidir toda la automatización futura.</p>
+            <div class="decision-list">
+              <div class="decision"><input id="d1" type="checkbox"><label for="d1"><b>Responsable editorial</b><span>Quién aprueba contenido en la app y quién publica o programa en WordPress.</span></label></div>
+              <div class="decision"><input id="d2" type="checkbox"><label for="d2"><b>Modo inicial</b><span>Recomendación: crear siempre un borrador de WordPress. Decidir si, más adelante, se programará automáticamente tras una aprobación explícita.</span></label></div>
+              <div class="decision"><input id="d3" type="checkbox"><label for="d3"><b>Diseño y bloques</b><span>Validar una entrada de prueba en el tema actual: HTML, tablas, CTA, enlaces e imágenes. Si trabajan con Gutenberg o una plantilla específica, se adaptará a ese formato.</span></label></div>
+              <div class="decision"><input id="d4" type="checkbox"><label for="d4"><b>SEO</b><span>Confirmar si la web usa Yoast, Rank Math, otro plugin o ninguno, y qué campos deben llegar desde la app. Los campos propios del plugin pueden requerir configuración o un endpoint adicional.</span></label></div>
+              <div class="decision"><input id="d5" type="checkbox"><label for="d5"><b>Taxonomía</b><span>Definir categorías, etiquetas, autor por defecto y reglas para crear o reutilizar cada término.</span></label></div>
+              <div class="decision"><input id="d6" type="checkbox"><label for="d6"><b>Imágenes</b><span>Acordar imagen destacada, dimensiones y peso aceptados, figuras interiores y conservación del caption / alt propuesto.</span></label></div>
+              <div class="decision"><input id="d7" type="checkbox"><label for="d7"><b>URLs y enlaces</b><span>Confirmar la estructura de enlaces del blog y que los enlaces internos generados coinciden con las URLs definitivas.</span></label></div>
+              <div class="decision"><input id="d8" type="checkbox"><label for="d8"><b>Correcciones posteriores</b><span>Definir si, después de una edición en WordPress, la app puede actualizar de nuevo el borrador. Recomendación: solo mediante una acción explícita de “sincronizar cambios”.</span></label></div>
+              <div class="decision"><input id="d9" type="checkbox"><label for="d9"><b>Errores y trazabilidad</b><span>Mostrar en la app el ID, URL, fecha y resultado de WordPress; un reintento no debe crear un segundo artículo.</span></label></div>
+            </div>
+          </section>
+
+          <section class="section" id="accesos" aria-labelledby="accesos-title">
+            <div class="section-heading">
+              <span class="section-number">05</span>
+              <h2 id="accesos-title">Accesos a pedir</h2>
+            </div>
+            <p class="section-intro">La preparación técnica se desbloquea con un acceso limitado y revocable. No hace falta entregar una contraseña personal ni abrir acceso a la app desde el navegador.</p>
+            <div class="access-grid">
+              <div class="access-list">
+                <div class="access-item"><b>01</b><p>URL de administración de WordPress y contacto técnico que mantenga la web.</p></div>
+                <div class="access-item"><b>02</b><p>Un usuario técnico específico de WordPress, con el mínimo permiso para crear o editar entradas y subir medios.</p></div>
+                <div class="access-item"><b>03</b><p>Una <strong>contraseña de aplicación</strong> para ese usuario, guardada solo como secreto del servidor de la app.</p></div>
+                <div class="access-item"><b>04</b><p>Confirmación de que el servidor admite peticiones autenticadas a la API REST y que ningún firewall o plugin de seguridad las bloquea.</p></div>
+                <div class="access-item"><b>05</b><p>Datos de un artículo de prueba: categoría, autor, imagen y creación como borrador.</p></div>
+                <div class="access-item"><b>06</b><p>Nombre y configuración del plugin SEO, si existe.</p></div>
+              </div>
+              <aside class="security-note">
+                <p class="mini-kicker">Principio de seguridad</p>
+                <h3>Un acceso técnico, no personal.</h3>
+                <p>La credencial se guarda <strong>solo en el servidor</strong>. Nunca en el navegador, en documentos compartidos o en una cuenta individual del equipo.</p>
+              </aside>
+            </div>
+          </section>
+
+          <section class="section" id="piloto" aria-labelledby="piloto-title">
+            <div class="section-heading">
+              <span class="section-number">06</span>
+              <h2 id="piloto-title">Cuándo damos por bueno el piloto</h2>
+            </div>
+            <p class="section-intro">El piloto usa un artículo real, pero permanece en borrador. Así validamos contenido, presentación y operación sin riesgo de publicar antes de tiempo.</p>
+            <div class="acceptance-grid">
+              <article class="acceptance"><span class="acceptance-id">CHECK 01</span><p>Se crea <strong>un único post</strong> en WordPress desde un blog aprobado en la app.</p></article>
+              <article class="acceptance"><span class="acceptance-id">CHECK 02</span><p>Título, URL, HTML, enlaces y CTA se ven correctamente en el tema.</p></article>
+              <article class="acceptance"><span class="acceptance-id">CHECK 03</span><p>La imagen destacada se sube y queda asignada con su texto alternativo.</p></article>
+              <article class="acceptance"><span class="acceptance-id">CHECK 04</span><p>Categorías, autor y datos SEO quedan donde Marketing los necesita.</p></article>
+              <article class="acceptance"><span class="acceptance-id">CHECK 05</span><p>La app muestra el enlace al borrador y permite reintentar sin duplicarlo.</p></article>
+              <article class="acceptance"><span class="acceptance-id">CHECK 06</span><p>Marketing puede editar y publicar el borrador con su proceso habitual.</p></article>
+            </div>
+          </section>
+
+          <section class="section" id="guion" aria-labelledby="guion-title">
+            <div class="section-heading">
+              <span class="section-number">07</span>
+              <h2 id="guion-title">Una forma de abrir la conversación</h2>
+            </div>
+            <blockquote class="opening-script">
+              <p>La aplicación ya nos entrega un artículo revisable, con SEO, imágenes y fuentes. Lo que proponemos ahora no es publicar a ciegas: es llevar ese trabajo a un borrador de WordPress con un clic, para que Marketing conserve la revisión y publicación final. Cerramos hoy el formato del artículo, el SEO, los permisos y un piloto; con eso podemos validar la conexión con una entrada real antes de automatizar más.</p>
+              <footer>Guion de apertura</footer>
+            </blockquote>
+          </section>
+
+          <section class="section" id="siguiente" aria-labelledby="siguiente-title">
+            <div class="section-heading">
+              <span class="section-number">08</span>
+              <h2 id="siguiente-title">Siguiente paso tras la reunión</h2>
+            </div>
+            <div class="next-step">
+              <span class="next-step-label">Piloto<br>validado</span>
+              <p>Revisar la presentación, los enlaces y Rank Math en los borradores ya creados. <strong>No se activará publicación automática</strong> sin una decisión editorial y técnica explícita.</p>
+            </div>
+          </section>
+
+          <section class="section" id="referencias" aria-labelledby="referencias-title">
+            <div class="section-heading">
+              <span class="section-number">09</span>
+              <h2 id="referencias-title">Referencias técnicas</h2>
+            </div>
+            <ul class="reference-list">
+              <li><a href="https://developer.wordpress.org/rest-api/reference/posts/" target="_blank" rel="noreferrer"><span><strong>API REST de posts de WordPress</strong>Permite crear y actualizar entradas, incluido contenido, slug, extracto, imagen destacada, categorías, etiquetas y estados.</span></a></li>
+              <li><a href="https://developer.wordpress.org/rest-api/using-the-rest-api/authentication/" target="_blank" rel="noreferrer"><span><strong>Autenticación REST de WordPress</strong>Las contraseñas de aplicación permiten autenticar un servicio externo sin usar una contraseña personal.</span></a></li>
+            </ul>
+          </section>
+        </div>
+      </div>
+
+      <footer class="footer">
+        <p>Uso interno · Nexia Growth Partner</p>
+        <p>Reunión Marketing / WordPress · 01 septiembre 2026</p>
+      </footer>
+    </main>
+  </body>
+</html>

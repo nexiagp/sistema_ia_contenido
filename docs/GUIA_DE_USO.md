@@ -1,6 +1,6 @@
 # Guía de uso — Nexia GP Content AI
 
-**Actualizada:** 24 de agosto de 2026
+**Actualizada:** 1 de septiembre de 2026
 **Dirigida a:** equipo editorial, dirección comercial y cliente de Nexia GP.
 **Aplicación:** <https://nexiagp-content.vercel.app>
 
@@ -12,7 +12,8 @@ Esta guía explica el uso diario de la aplicación de contenido. Para cambios t�
 2. Actualiza la página si otra persona acaba de crear o modificar contenido.
 3. Define antes el objetivo, audiencia, tesis, CTA y evidencia disponible.
 
-El acceso actual es por enlace directo. Trátalo como un acceso de trabajo: quien conoce la URL puede consultar y operar el contenido. No compartas claves, información sensible ni documentos sin autorización.
+El acceso requiere una sesión autorizada de Nexia GP. Trátalo como un acceso de trabajo: no
+compartas cuentas, claves, información sensible ni documentos sin autorización.
 
 > Generar texto, regenerar adaptaciones, crear imágenes y sincronizar la biblioteca con OpenAI puede consumir saldo. Revisa el encargo antes de solicitar una generación.
 
@@ -138,7 +139,7 @@ Puedes **copiar HTML** o **descargar HTML** si necesitas una entrega manual. Ant
 Para el flujo conectado con WordPress, usa siempre esta secuencia visible en la ficha del blog:
 
 1. **Aprobar contenido**: registra la revisión editorial y deja el artículo listo para WordPress. Si hay una puerta de calidad, revisa sus avisos antes de confirmarla.
-2. **Crear borrador en WordPress**: envía o actualiza el borrador con el contenido y las imágenes optimizadas. Este paso nunca publica el artículo. Si Rank Math expone sus campos a la API, también completa metatítulo, metadescripción y keyword principal; si no, la ficha señala esos tres campos para revisión manual antes de publicar. Si el botón está desactivado, falta aprobar el contenido o configurar WordPress en el servidor.
+2. **Crear borrador en WordPress**: envía o actualiza el borrador con el contenido y las imágenes optimizadas. Este paso nunca publica el artículo. Si Rank Math expone sus campos a la API, también completa metatítulo, metadescripción y keyword principal; si no, la ficha señala esos tres campos para revisión manual antes de publicar. Si editas título, slug, metadatos o HTML después de aprobar, vuelve a registrar la revisión antes de enviarlo.
 3. **Reservar fecha**: se realiza desde **Calendario editorial** y sólo organiza la agenda interna. Después de revisar el borrador, programa o publica manualmente desde WordPress según el proceso acordado por el equipo.
 
 Eliminar un artículo es irreversible desde la interfaz: confirma primero que no se necesitará como referencia o versión base.
@@ -221,9 +222,11 @@ Los prompts nuevos sólo se aplican a generaciones posteriores. No deben contene
 | Pantalla vacía o desactualizada | Recarga la URL estable. Si continúa, anota hora y captura; no generes contenido para probar. |
 | Un trabajo tarda | Espera a que finalice y actualiza *Revisión editorial* o *Blogs web*. No lances encargos duplicados. |
 | No puedo preparar una pieza | Lee los bloqueos de calidad y confirma la revisión después de corregirlos. |
-| No puedo crear el borrador de WordPress | Primero pulsa **Aprobar contenido**. Si el botón sigue desactivado, la conexión de WordPress no está configurada en el servidor. |
+| No puedo crear el borrador de WordPress | Comprueba que el artículo está en **Listo** y con la revisión registrada. Si se editó título, slug, metadatos o HTML, apruébalo otra vez. Si aparece otro error, consulta el mensaje en la ficha y no reintentes en cadena. |
 | Imagen no aparece | Actualiza, prueba descargar el PNG y comunica ID/título; no reintentes en cadena. |
 | No se publica al programar | Es el comportamiento actual: el calendario no tiene publicación automática integrada. |
 | Quiero borrar contenido o una fuente | Detente y confirma decisión editorial y copia cuando sea necesaria. |
 
-Para incidencias técnicas recurrentes, consulta [Arquitectura y operación](ARQUITECTURA_Y_OPERACION.md), donde se indica cómo revisar Vercel y Supabase.
+Para la operación y las incidencias específicas de WordPress, consulta el [Runbook de
+WordPress](WORDPRESS_RUNBOOK.md). Para incidencias técnicas recurrentes, consulta
+[Arquitectura y operación](ARQUITECTURA_Y_OPERACION.md), donde se indica cómo revisar Vercel y Supabase.

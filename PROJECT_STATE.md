@@ -1,5 +1,28 @@
 # Nexia GP Content AI — Estado de continuidad
 
+## Actualización vigente — 01/09/2026 — WordPress, acceso y continuidad
+
+- **Producción:** `https://nexiagp-content.vercel.app` continúa en Vercel y está autenticada con
+  Supabase (`NEXIAGP_AUTH_REQUIRED=1`). El proyecto Supabase operativo es
+  `tdhbogzpnqvdcmhyrzkr`; no reemplazar su estado con una copia local.
+- **Activos persistentes:** se completó la migración de las fuentes, documentos e imágenes
+  históricos al Storage de Supabase. La función y el token de alcance limitado que se crearon sólo
+  para esa migración fueron eliminados y revocados al finalizar.
+- **WordPress:** la conexión con `nexiagp.com` está operativa mediante secretos de Vercel. Los
+  artículos aprobados se suben con sus imágenes como borradores; el piloto dejó tres entradas en
+  `draft`, sin ninguna publicación automática.
+- **Incidencia resuelta:** el commit `f939324` evita que un recálculo de calidad elimine la
+  aceptación editorial ya registrada justo antes de crear el borrador. Una edición de contenido
+  sigue exigiendo una aprobación nueva, por diseño.
+- **SEO:** Rank Math está instalado, pero sus campos no se exponen como metacampos REST editables.
+  Cada borrador requiere revisar metatítulo, metadescripción y keyword en WordPress antes de
+  publicar.
+- **Documentación de relevo:** usar [Arquitectura y operación](docs/ARQUITECTURA_Y_OPERACION.md)
+  para infraestructura y [Runbook de WordPress](docs/WORDPRESS_RUNBOOK.md) para el flujo diario.
+
+La sección siguiente conserva la fotografía del 31/08/2026 como histórico; no describe el acceso
+ni el flujo de WordPress actuales.
+
 ## Actualización vigente — 31/08/2026
 
 - **Fuentes de fabricantes:** 20 webs oficiales están recuperadas, guardadas en Supabase de

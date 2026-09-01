@@ -9,10 +9,12 @@ Aplicación editorial de Nexia Growth Partner para crear, revisar, ilustrar y pl
 
 - **Para utilizar la aplicación:** [Guía completa de uso](docs/GUIA_DE_USO.md).
 - **Para operar, mantener o desplegar:** [Arquitectura y operación](docs/ARQUITECTURA_Y_OPERACION.md).
+- **Para crear y revisar borradores web:** [Runbook de WordPress](docs/WORDPRESS_RUNBOOK.md).
 - **Para las fuentes de fabricantes y el plan de continuidad:** [Estado y hoja de ruta (31/08/2026)](docs/ESTADO_Y_HOJA_DE_RUTA_2026-08-31.md).
 - **Para retomar el desarrollo:** [Estado del proyecto](PROJECT_STATE.md) y [changelog](CHANGELOG.md).
 
-La URL de producción es de acceso directo por decisión operativa actual. Quien tenga el enlace puede acceder, por lo que sólo debe compartirse con el equipo autorizado para trabajar sobre el contenido.
+La URL de producción requiere una sesión autorizada de Nexia GP. El acceso se gestiona mediante
+Supabase; no compartas cuentas, credenciales técnicas ni contraseñas de aplicación.
 
 ## Qué permite hacer
 
@@ -54,7 +56,8 @@ Los detalles de buckets, recuperación, variables y límites están en la [docum
 1. En **Sistema editorial IA**, rellena el briefing y ejecuta el pipeline para crear un borrador.
 2. En **Revisión editorial**, valida el copy y las fuentes, edita lo necesario y reconoce la revisión cuando la puerta de calidad lo solicite.
 3. Genera o elige la imagen, aprueba la pieza y llévala al **Calendario editorial**.
-4. Reserva fecha y hora en el calendario. Después, publica manualmente desde el canal social correspondiente.
+4. Reserva fecha y hora en el calendario. Para un blog, crea antes el borrador en WordPress y
+revisa Rank Math; la publicación final sigue siendo manual desde el CMS.
 
 Para artículos, entra en **Blogs web** y pulsa **Crear blog**. Si ya hay artículos, el formulario aparece recogido dentro de ese botón.
 

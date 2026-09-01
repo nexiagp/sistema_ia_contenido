@@ -1,6 +1,6 @@
 # Arquitectura y operación — Nexia GP Content AI
 
-**Actualizado:** 24 de agosto de 2026
+**Actualizado:** 1 de septiembre de 2026
 **Ámbito:** aplicación de contenido de Nexia GP. No cubre el chatbot.
 
 Para el trabajo diario en la interfaz, consultar primero la [Guía de uso](GUIA_DE_USO.md). Este documento es la referencia de arquitectura, despliegue, seguridad y recuperación.
@@ -25,6 +25,7 @@ Vercel · proyecto nexiagp-content
         │             │
         │             ├── OpenAI Responses / Images / Vector Store
         │             ├── Cloudinary (entrega opcional de imágenes)
+        │             ├── WordPress · medios y borradores del blog
         ▼
 Supabase
   estado editorial · biblioteca · imágenes · activos de marca
@@ -40,6 +41,7 @@ GitHub (main) ──push──► Vercel (despliegue automático)
 | **Supabase** | Fuente de verdad del estado editorial, control de miembros y almacenamiento privado de archivos. | Obligatorio en producción. |
 | **OpenAI** | Generación de copy, blogs, prompts, imágenes y consulta del Vector Store. | Sólo se llama desde el servidor; consume saldo según uso. |
 | **Cloudinary** | URL de entrega opcional para imágenes ya compuestas. | No es requisito para conservar ni recuperar una imagen. |
+| **WordPress** | Destino de los artículos ya aprobados: medios y borradores de entradas. | `nexiagp.com`; nunca publica desde la integración. |
 | **GitHub** | Código, migraciones, pruebas y documentación pública operativa. | Repositorio público; no contiene datos ni secretos. |
 
 ## Supabase: datos y almacenamiento
@@ -57,6 +59,43 @@ servidor:
 Las rutas públicas de la aplicación, como `/images/<archivo>.png`, son una entrega de la API que
 obtiene el binario duradero desde Supabase. Una ruta local o de `/tmp` nunca forma parte del estado
 editorial persistido.
+
+El 1 de septiembre se completó la copia de los activos históricos a estos buckets antes de activar
+la sincronización de WordPress. El estado editorial remoto y los objetos de Storage son el único
+origen operativo; no reconstruirlos desde una copia local de `db.json`.
+
+## WordPress: flujo de borradores
+
+La integración de `nexiagp.com` está activa. Un blog sólo puede enviarse cuando está en estado
+`ready` o `scheduled` y tiene la revisión humana registrada. El envío:
+
+1. vuelve a ejecutar los controles deterministas de calidad sin borrar la aprobación registrada;
+2. obtiene las figuras desde `editorial-images`, las convierte a JPEG optimizado (objetivo 200 KB,
+   máximo 1 MB) y las sube a la Biblioteca multimedia de WordPress;
+3. crea o actualiza **un borrador** de entrada con título, slug, contenido, extracto, figuras e
+   imagen destacada;
+4. guarda en Nexia GP el ID, URL, fecha, hash del contenido y medios subidos para evitar
+   duplicados en los reintentos.
+
+Una edición de título, slug, meta título, meta descripción o HTML editorial invalida la aprobación
+anterior a propósito: hay que revisar y confirmar otra vez antes de sincronizar. Un reenvío sin
+cambios conserva la aprobación y actualiza el borrador ya asociado. La integración nunca cambia
+una entrada publicada y nunca ejecuta `publish` ni una programación automática.
+
+### SEO y Rank Math
+
+La aplicación detecta en tiempo de ejecución si Rank Math expone sus metacampos mediante la API
+REST de WordPress. Cuando estén disponibles, envía metatítulo, metadescripción y keyword principal.
+En la configuración actual no se exponen como campos REST editables, por lo que cada borrador queda
+marcado para completar o revisar esos datos manualmente en Rank Math antes de publicarlo. Esta
+limitación SEO no bloquea la creación del borrador.
+
+### Incidencia corregida el 01/09/2026
+
+El botón de WordPress recalculaba la puerta de calidad justo antes del envío y perdía la marca de
+revisión humana; por eso un artículo ya aceptado mostraba de nuevo el error de que debía aceptarse.
+El cambio `f939324` conserva esa marca al recalcular el mismo contenido y exige una aprobación
+nueva sólo ante cambios editoriales. Se verificó creando tres borradores reales sin publicar.
 
 ## Flujo de generación de contenido
 
@@ -100,17 +139,18 @@ solicitud de imagen puede haber llegado al proveedor y tener coste aunque falle 
 
 ## Acceso y seguridad
 
-- El acceso actual es **directo por enlace**: `NEXIAGP_AUTH_REQUIRED=0` y la protección SSO de
-  Vercel está desactivada por decisión operativa. Cualquier persona que conozca la URL puede abrir
-  la aplicación.
+- La aplicación exige autenticación de Nexia GP en producción
+  (`NEXIAGP_AUTH_REQUIRED=1`). La API valida una sesión de Supabase y una membresía activa antes
+  de devolver o modificar el estado editorial. No desactivar esta barrera mientras WordPress esté
+  conectado.
 - Las claves de OpenAI, Cloudinary, Supabase y el secreto del cron existen sólo como variables
   cifradas de producción en Vercel y, para uso local, en `.env`. Nunca copiarlas a GitHub, al
   frontend ni a documentación.
 - El repositorio público ignora `.env`, archivos de claves, `data/db.json`, backups, estado de
   migración y `Documentación Nexia/`.
-- Si en el futuro se requiere acceso restringido, activar `NEXIAGP_AUTH_REQUIRED=1`, verificar la
-  membresía correspondiente en Supabase y volver a probar acceso, sesiones y API antes de abrirlo
-  al equipo.
+- Para dar acceso a una persona, crear o habilitar su membresía en Supabase y probar inicio de
+  sesión, lectura de estado y una acción no destructiva. No compartir cuentas ni contraseñas de
+  aplicación de WordPress.
 
 ## Variables de entorno de producción
 
@@ -127,7 +167,12 @@ SUPABASE_URL
 SUPABASE_PUBLISHABLE_KEY
 SUPABASE_SERVICE_ROLE_KEY
 SUPABASE_STATE_BACKEND=1
-NEXIAGP_AUTH_REQUIRED=0
+NEXIAGP_AUTH_REQUIRED=1
+WORDPRESS_BASE_URL
+WORDPRESS_USERNAME
+WORDPRESS_APPLICATION_PASSWORD
+WORDPRESS_DEFAULT_CATEGORY_ID
+WORDPRESS_AUTHOR_ID
 CRON_SECRET
 ```
 
@@ -169,6 +214,9 @@ No hacer una generación de OpenAI sólo para probar si no se desea incurrir en 
 | Imagen no generada | Logs de Vercel para `POST /api/posts/:id/generate-image`. | Confirmar Supabase y usar `/tmp`; no reintentar repetidamente. |
 | Imagen 404 | Abrir `/images/<archivo>.png`. | Comprobar el objeto de `editorial-images` y la referencia persistida. |
 | Estado desactualizado | Consultar `/api/state` y el despliegue activo. | No sobrescribir Supabase con `data/db.json` local. |
+| WordPress pide revisión aunque ya se aceptó | Actualizar la app y confirmar que está desplegado `f939324` o posterior. | Si se cambió título, slug, metadatos o HTML, registrar la nueva revisión; si no hubo edición, abrir incidencia. |
+| El borrador de WordPress falla | Revisar el error guardado en la ficha del blog y los logs de Vercel. | No repetir en cadena: comprobar primero los objetos de `editorial-images`, la conexión y el borrador existente. |
+| SEO pendiente en Rank Math | Abrir el borrador en WordPress y revisar el panel de Rank Math. | Completar los campos allí; no impedir la revisión editorial ni publicar desde Nexia GP. |
 | Push no despliega | Revisar el commit en `main` y la integración GitHub de Vercel. | Confirmar que la rama de producción es `main`. |
 
 Para los logs: Vercel Dashboard → **Nexia GP / nexiagp-content** → Deployments/Logs. Para datos y
