@@ -6,6 +6,7 @@ Este documento recoge la revisión visual y la comprobación del despliegue del 
 
 - La aplicación pública `https://nexiagp-content.vercel.app` ya pide la contraseña del equipo. Se comprobó el inicio de sesión, la carga del estado editorial y el rechazo de una consulta sin sesión (`401`).
 - `https://nexiagp.com/blog/` contiene cinco entradas publicadas antiguas. Los tres artículos generados por la aplicación continúan como borradores de WordPress.
+- Los tres artículos se devolvieron a «En revisión» en la aplicación tras detectar los problemas siguientes. Se retiró la aprobación previa; los tres borradores de WordPress siguen en `draft` y no se modificaron.
 - Las vistas previas de los tres borradores repiten la imagen destacada como primera imagen del cuerpo. En los artículos 7415 y 7411, el recurso propuesto muestra «descargar» sin enlace. El 7408 muestra «Recurso en preparación». La plantilla añade etiquetas ajenas al negocio («Financial», «Advisor», «Wealth»).
 - El borrador 7411 usa como portada un mapa/diagrama generado con datos visuales que no deben tratarse como hechos. Hay que sustituir esa imagen antes de publicar. La portada del 7415 representa logística portuaria aunque el artículo trata de prescripción técnica hotelera; conviene elegir una escena más específica.
 - En el 7408 hay una construcción gramatical que pide corrección manual («una trabajo con fabricantes»), junto con una revisión general de los enlaces y de las tablas en móvil.

@@ -3257,6 +3257,7 @@ def decorate_state(db: dict) -> dict:
     blogs = [sanitize_blog_for_client(item) for item in db.get("blogs", [])]
     counts["blogs"] = len(blogs)
     counts["blogsDraft"] = sum(1 for b in blogs if b.get("status") == "draft")
+    counts["blogsReview"] = sum(1 for b in blogs if b.get("status") == "review")
     counts["blogsReady"] = sum(1 for b in blogs if b.get("status") == "ready")
     counts["blogsScheduled"] = sum(1 for b in blogs if b.get("status") == "scheduled")
     counts["blogsPublished"] = sum(1 for b in blogs if b.get("status") == "published")

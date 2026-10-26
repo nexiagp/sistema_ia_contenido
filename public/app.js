@@ -1151,6 +1151,7 @@ function postsToolbar() {
       <div class="filter-chips">
         ${chip("all", "Todos")}
         ${chip("draft", "Borradores")}
+        ${chip("review", "En revisión")}
         ${chip("ready", "Listos")}
         ${chip("published", "Publicados")}
       </div>
@@ -1554,7 +1555,7 @@ function renderBlogs() {
         <span class="pill">CTA fija "¿Comenzamos? · Contactar"</span>
       </div>
       <div class="blogs-template-actions">
-        <span class="muted">${counts.blogs || 0} totales · ${counts.blogsDraft || 0} borradores · ${counts.blogsReady || 0} listos · ${counts.blogsPublished || 0} publicados</span>
+        <span class="muted">${counts.blogs || 0} totales · ${counts.blogsDraft || 0} borradores · ${counts.blogsReview || 0} en revisión · ${counts.blogsReady || 0} listos · ${counts.blogsPublished || 0} publicados</span>
         <button class="ghost-button" type="button" data-action="settings-tab" data-tab="blog">${iconSvg("settings")}Ajustes de Blog</button>
       </div>
     </div>
