@@ -1502,6 +1502,7 @@ function blogsToolbar() {
       <div class="filter-chips">
         ${chip("all", "Todos")}
         ${chip("draft", "Borradores")}
+        ${chip("review", "En revisión")}
         ${chip("ready", "Listos")}
         ${chip("published", "Publicados")}
       </div>
