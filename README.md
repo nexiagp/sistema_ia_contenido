@@ -14,9 +14,8 @@ Aplicación editorial de Nexia Growth Partner para crear, revisar, ilustrar y pl
 - **Para las fuentes de fabricantes y el plan de continuidad:** [Estado y hoja de ruta (31/08/2026)](docs/ESTADO_Y_HOJA_DE_RUTA_2026-08-31.md).
 - **Para retomar el desarrollo:** [Estado del proyecto](PROJECT_STATE.md) y [changelog](CHANGELOG.md).
 
-El acceso de equipo por contraseña está preparado y comprobado localmente. Las variables privadas
-ya están configuradas en el proyecto Vercel de Nexia GP; el cambio de código se hará efectivo con
-el siguiente despliegue.
+El acceso de equipo por contraseña está activo en producción. La aplicación conserva el estado
+editorial en Supabase; la contraseña privada está guardada fuera del repositorio.
 
 ## Qué permite hacer
 

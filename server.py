@@ -1515,9 +1515,14 @@ def patch_blog(blog_id: str, body: dict) -> dict:
                     blog.setdefault("article", {})["article_html_override"] = body[key]
                 elif key != "status":
                     blog[key] = body[key]
-        # Any editorial change requires a fresh human acknowledgement.  A
-        # status-only update or a WordPress re-sync keeps the prior approval.
-        if any(key in body for key in {"metaTitle", "metaDescription", "slug", "title", "articleHtmlOverride"}):
+        # A changed article or a deliberate return to review invalidates the
+        # old approval and any date reserved for the previous version.
+        editorial_changed = any(key in body for key in {"metaTitle", "metaDescription", "slug", "title", "articleHtmlOverride"})
+        returned_to_review = body.get("status") in {"draft", "review"}
+        if editorial_changed:
+            blog["status"] = "review"
+            blog.pop("scheduledFor", None)
+        if editorial_changed or returned_to_review:
             existing_gate = blog.get("qualityGate")
             if isinstance(existing_gate, dict) and existing_gate.get("blockers"):
                 existing_gate.pop("reviewAcknowledgedAt", None)

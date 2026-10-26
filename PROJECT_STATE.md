@@ -1,9 +1,9 @@
 # Nexia GP Content AI — Estado de continuidad
 
-## Revisión local — 26/10/2026 — pendiente de despliegue
+## Revisión de producción — 26/10/2026
 
 - Ver [revisión visual, acceso y redes](docs/REVISION_BLOGS_Y_REDES_2026-10-26.md) para evidencias y próximos pasos.
-- El acceso mediante contraseña compartida y la corrección de la exportación de blogs están implementados y comprobados **localmente**. Producción todavía solicita correo.
+- El acceso mediante contraseña compartida está activo en producción. Se verificó el inicio de sesión, la carga de los tres blogs y el rechazo `401` sin sesión. La corrección de la exportación futura a WordPress también está desplegada.
 - X `@NexiaGP` y la página de LinkedIn de Nexia GP (ID `106088372`) se verificaron en las sesiones abiertas; Instagram y los permisos de publicación siguen pendientes.
 - Los tres borradores de WordPress continúan en `draft`; no se han actualizado ni publicado con el código nuevo.
 
