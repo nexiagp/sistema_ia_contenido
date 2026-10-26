@@ -116,7 +116,7 @@ docs/                Guías de uso, arquitectura y operación
 
 ## Seguridad y límites
 
-- Los secretos viven exclusivamente en las variables de Production de Vercel y, para desarrollo local, en `.env`.
+- Los secretos operativos viven en las variables de Production de Vercel. Las credenciales de preparación local permanecen en `.env` o `secrets/`, ambos excluidos de Git; no equivalen a una conexión activa en producción.
 - El repositorio no debe contener `.env`, claves, contenido editorial vivo, backups ni documentación interna.
 - Crear contenido, regenerar adaptaciones, sincronizar OpenAI o generar imágenes puede tener coste.
 - No borrar posts, blogs, archivos de biblioteca ni objetos de Supabase sin una decisión editorial explícita.

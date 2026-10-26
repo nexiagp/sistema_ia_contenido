@@ -4,7 +4,7 @@
 
 - Ver [revisión visual, acceso y redes](docs/REVISION_BLOGS_Y_REDES_2026-10-26.md) para evidencias y próximos pasos.
 - El acceso mediante contraseña compartida está activo en producción. Se verificó el inicio de sesión, la carga de los tres blogs y el rechazo `401` sin sesión. La corrección de la exportación futura a WordPress también está desplegada.
-- X `@NexiaGP` y la página de LinkedIn de Nexia GP (ID `106088372`) se verificaron en las sesiones abiertas; Instagram y los permisos de publicación siguen pendientes.
+- X `@NexiaGP` tiene aplicación de desarrollador y permiso «Leer y escribir», pero la cuenta muestra 0 créditos de API y no hay conector de publicación en el servidor. LinkedIn tiene aplicación creada y asociación verificada con la página Nexia GP (ID `106088372`); la solicitud de Community Management espera un correo accesible `@nexiagp.com`. Instagram sigue sin perfil oficial confirmado.
 - Los tres borradores de WordPress continúan en `draft`; no se han actualizado ni publicado con el código nuevo.
 
 ## Actualización vigente — 01/09/2026 — WordPress, acceso y continuidad

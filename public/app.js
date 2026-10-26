@@ -17,6 +17,8 @@ const app = {
   auth: null,
 };
 
+const PUBLIC_SITE_ORIGIN = "https://nexiagp.com";
+
 const PROMPT_GROUP_LABELS = {
   core_posts: "Posts · Core",
   post_types: "Posts · Tipos",
@@ -1777,7 +1779,21 @@ function injectFigureImages(articleHtml, figures) {
 }
 
 function buildPreviewDocument(html) {
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><link rel="stylesheet" href="/blog-preview.css"></head><body>${html}</body></html>`;
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><link rel="stylesheet" href="/blog-preview.css"></head><body>${resolvePublicArticleLinks(html)}</body></html>`;
+}
+
+function publicSiteHref(path) {
+  return safeInternalHref(path) ? new URL(path, PUBLIC_SITE_ORIGIN).href : "";
+}
+
+function resolvePublicArticleLinks(html) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  template.content.querySelectorAll("a[href]").forEach((link) => {
+    const publicHref = publicSiteHref(link.getAttribute("href"));
+    if (publicHref) link.setAttribute("href", publicHref);
+  });
+  return template.innerHTML;
 }
 
 async function buildStandaloneDocument(html, blog) {
@@ -1815,7 +1831,7 @@ ${css}
   </style>
 </head>
 <body>
-${html}
+${resolvePublicArticleLinks(html)}
 </body>
 </html>`;
 }
@@ -1960,7 +1976,7 @@ function blogBriefPanel(brief) {
       <section class="internal-links-board">
         <header><p class="eyebrow">Conexión con la web</p><h4>Enlaces internos propuestos</h4><span>${internalLinks.length} ${internalLinks.length === 1 ? "enlace" : "enlaces"}</span></header>
         ${internalLinks.length ? `<div class="internal-links-grid">${internalLinks.map((link) => `
-          <a class="internal-link-card" href="${escapeAttr(link.url_path)}" target="_blank" rel="noopener">
+          <a class="internal-link-card" href="${escapeAttr(publicSiteHref(link.url_path))}" target="_blank" rel="noopener">
             <small>${escapeHtml(link.url_path)}</small>
             <strong>${escapeHtml(link.anchor)}</strong>
             <p>${escapeHtml(link.rationale || "Abre esta página relacionada.")}</p>
