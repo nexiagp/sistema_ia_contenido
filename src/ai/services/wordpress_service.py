@@ -34,6 +34,11 @@ _BLOG_HEADER_RE = re.compile(r"<header\b[^>]*\bclass\s*=\s*(['\"])[^'\"]*\bblog-
 _ARTICLE_OPEN_RE = re.compile(r"^\s*<article\b[^>]*\bblog-post\b[^>]*>", re.IGNORECASE)
 _ARTICLE_CLOSE_RE = re.compile(r"</article\s*>\s*$", re.IGNORECASE)
 _FIRST_H1_RE = re.compile(r"<h1\b[^>]*>.*?</h1\s*>", re.IGNORECASE | re.DOTALL)
+_LEAD_MAGNET_RE = re.compile(
+    r"<aside\b(?P<attrs>[^>]*)>(?P<body>.*?)</aside\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+_VALID_LINK_RE = re.compile(r"<a\b[^>]*\bhref\s*=\s*(['\"])(?:https?://|/)[^'\"]+\1", re.IGNORECASE)
 _FILENAME_RE = re.compile(r"[^a-z0-9_-]+", re.IGNORECASE)
 _RANK_MATH_META_FIELDS = (
     "rank_math_title",
@@ -99,7 +104,12 @@ def prepare_wordpress_image(source: bytes, filename: str) -> PreparedImage:
     return PreparedImage(best[0], f"{stem}.jpg", "image/jpeg", best[1].width, best[1].height)
 
 
-def clean_wordpress_article(article_html: str, media_by_figure: dict[str, dict]) -> str:
+def clean_wordpress_article(
+    article_html: str,
+    media_by_figure: dict[str, dict],
+    *,
+    featured_figure_id: str | None = None,
+) -> str:
     """Replace Nexia figure placeholders with WordPress media and remove duplicate H1.
 
     WordPress' existing template supplies the article title.  Removing the
@@ -112,9 +122,18 @@ def clean_wordpress_article(article_html: str, media_by_figure: dict[str, dict])
     content = _ARTICLE_CLOSE_RE.sub("", content)
     content = _FIRST_H1_RE.sub("", content, count=1)
 
+    def remove_unavailable_resource(match: re.Match[str]) -> str:
+        if re.search(r"\blead-magnet\b", match.group("attrs"), re.IGNORECASE) and not _VALID_LINK_RE.search(match.group("body")):
+            return ""
+        return match.group(0)
+
+    content = _LEAD_MAGNET_RE.sub(remove_unavailable_resource, content)
+
     def replace_figure(match: re.Match[str]) -> str:
         id_match = _FIGURE_ID_RE.search(match.group("attrs"))
         figure_id = id_match.group("id") if id_match else ""
+        if figure_id and figure_id == featured_figure_id:
+            return ""
         media = media_by_figure.get(figure_id)
         if not media:
             return match.group(0)
@@ -421,7 +440,8 @@ class WordPressService:
         title = str(blog.get("title") or (blog.get("brief") or {}).get("h1") or "").strip()
         slug = str(blog.get("slug") or seo.get("slug") or "").strip()
         article_html = str(article.get("article_html_override") or article.get("article_html") or "")
-        content = clean_wordpress_article(article_html, media_by_figure)
+        featured_figure_id = "hero" if "hero" in media_by_figure else next(iter(media_by_figure), None)
+        content = clean_wordpress_article(article_html, media_by_figure, featured_figure_id=featured_figure_id)
         excerpt = str(blog.get("metaDescription") or seo.get("meta_description") or "").strip()
         rank_math_fields = self.rank_math_meta_fields()
         rank_math_meta = self.rank_math_meta_values(
@@ -430,7 +450,7 @@ class WordPressService:
             meta_description=excerpt,
             focus_keyword=str((blog.get("brief") or {}).get("primary_keyword") or seo.get("primary_keyword") or ""),
         )
-        featured = media_by_figure.get("hero") or next(iter(media_by_figure.values()), None)
+        featured = media_by_figure.get(featured_figure_id) if featured_figure_id else None
         post = self.upsert_draft(
             blog_id=str(blog.get("id") or ""),
             title=title,

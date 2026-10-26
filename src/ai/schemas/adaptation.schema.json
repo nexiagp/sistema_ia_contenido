@@ -23,7 +23,17 @@
         "cta": { "type": "string" }
       },
       "required": ["final_post", "cta"]
+    },
+    "instagram": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "caption": { "type": "string" },
+        "cta": { "type": "string" },
+        "hashtags": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["caption", "cta", "hashtags"]
     }
   },
-  "required": ["x", "facebook"]
+  "required": ["x", "facebook", "instagram"]
 }

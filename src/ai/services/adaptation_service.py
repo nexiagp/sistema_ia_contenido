@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from src.ai.services.context_helpers import clip_text
 from src.ai.services.openai_client import OpenAIClient
 from src.ai.services.prompt_service import base_prompt, schema, transformer_prompt
@@ -38,7 +40,7 @@ class AdaptationService:
         canonical = validation.get("final_post") or ""
         if self.client.enabled:
             user = (
-                "Adapta el post canonico validado de Nexia GP a X y Facebook.\n"
+                "Adapta el post canonico validado de Nexia GP a X, Facebook e Instagram.\n"
                 f"Post canonico: {canonical}\n"
                 f"CTA: {validation.get('cta')}\n"
                 f"Hashtags: {validation.get('hashtags')}\n"
@@ -50,6 +52,7 @@ class AdaptationService:
                     base_prompt(),
                     transformer_prompt("adaptacion_x"),
                     transformer_prompt("adaptacion_facebook"),
+                    transformer_prompt("adaptacion_instagram"),
                 ]
             )
             adaptations, response_id = self.client.responses_json(
@@ -61,8 +64,9 @@ class AdaptationService:
             )
             adaptations = self._enforce_x_limits(adaptations, db)
             adaptations = self._enforce_facebook_distinct(adaptations, canonical, validation, db)
+            adaptations = self._enforce_instagram_caption(adaptations)
             return adaptations, response_id
-        return self._fallback_adapt(validation), None
+        return self._enforce_instagram_caption(self._fallback_adapt(validation)), None
 
     def _enforce_x_limits(self, adaptations: dict, db: dict) -> dict:
         """Garantiza que cada pieza de X quepa en 280: re-prompt acotado y, si no, clip determinista."""
@@ -131,6 +135,19 @@ class AdaptationService:
         return adaptations
 
     @staticmethod
+    def _enforce_instagram_caption(adaptations: dict) -> dict:
+        instagram = dict((adaptations or {}).get("instagram") or {})
+        caption = str(instagram.get("caption") or "").strip()
+        # A web address in a caption is not clickable and often looks broken.
+        caption = re.sub(r"https?://\S+", "", caption)
+        caption = "\n".join(line.rstrip() for line in caption.splitlines()).strip()
+        instagram["caption"] = caption[:2200]
+        instagram["cta"] = str(instagram.get("cta") or "").strip()[:240]
+        instagram["hashtags"] = [str(tag).strip() for tag in (instagram.get("hashtags") or []) if str(tag).strip()][:5]
+        adaptations["instagram"] = instagram
+        return adaptations
+
+    @staticmethod
     def _similarity(a: str, b: str) -> float:
         """Jaccard sobre palabras significativas (>3 letras). 0 = nada en comun, 1 = identicos."""
         def tokens(text: str) -> set:
@@ -169,5 +186,10 @@ class AdaptationService:
             "facebook": {
                 "final_post": facebook,
                 "cta": validation.get("cta", ""),
+            },
+            "instagram": {
+                "caption": "\n\n".join([hook, thesis[:320], "¿Cómo lo estáis abordando en vuestro canal?"]),
+                "cta": "Cuéntanos tu experiencia en comentarios.",
+                "hashtags": [str(tag) for tag in (validation.get("hashtags") or [])[:5]],
             },
         }

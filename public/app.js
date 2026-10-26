@@ -61,7 +61,7 @@ async function initializeProtectedSession() {
 
   const fragment = new URLSearchParams(location.hash.replace(/^#/, ""));
   const accessToken = fragment.get("access_token");
-  if (accessToken) {
+  if (accessToken && config.mode === "supabase") {
     try {
       await establishProtectedSession(accessToken);
       history.replaceState(null, "", `${location.pathname}${location.search}`);
@@ -103,21 +103,49 @@ function renderAuthGate(message = "") {
   const gate = document.getElementById("authGate");
   if (!gate) return;
   gate.hidden = false;
+  const passwordMode = app.auth?.mode === "password";
   gate.innerHTML = `
     <div class="auth-card">
       <img src="/logo-web.png" alt="Nexia Growth Partner" class="auth-logo" />
       <p class="eyebrow">Área privada</p>
       <h1>Nexia GP Content</h1>
-      <p>Introduce tu correo autorizado. Te enviaremos un enlace seguro de acceso.</p>
+      <p>${passwordMode ? "Introduce la contraseña del equipo para acceder." : "Introduce tu correo autorizado. Te enviaremos un enlace seguro de acceso."}</p>
       <form id="authLoginForm" class="auth-form">
-        <label>Correo autorizado
-          <input name="email" type="email" autocomplete="email" required placeholder="nombre@empresa.com" />
+        <label>${passwordMode ? "Contraseña del equipo" : "Correo autorizado"}
+          ${passwordMode
+            ? '<input name="password" type="password" autocomplete="current-password" required />'
+            : '<input name="email" type="email" autocomplete="email" required placeholder="nombre@empresa.com" />'}
         </label>
-        <button class="primary-button" type="submit">Enviar enlace de acceso</button>
+        <button class="primary-button" type="submit">${passwordMode ? "Entrar" : "Enviar enlace de acceso"}</button>
       </form>
       <p class="auth-message ${message ? "is-error" : ""}" id="authMessage">${escapeHtml(message)}</p>
     </div>`;
-  gate.querySelector("#authLoginForm")?.addEventListener("submit", requestMagicLink);
+  gate.querySelector("#authLoginForm")?.addEventListener("submit", passwordMode ? requestTeamPassword : requestMagicLink);
+}
+
+async function requestTeamPassword(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const password = String(new FormData(form).get("password") || "");
+  const message = document.getElementById("authMessage");
+  const button = form.querySelector("button[type='submit']");
+  if (!password) return;
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/auth/password", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.ok === false) throw new Error(data.error || "No se ha podido iniciar sesión.");
+    location.reload();
+  } catch (error) {
+    message.classList.add("is-error");
+    message.textContent = error.message || "No se ha podido iniciar sesión.";
+    button.disabled = false;
+  }
 }
 
 async function requestMagicLink(event) {
@@ -156,7 +184,9 @@ async function requestMagicLink(event) {
 async function handleAuthenticationExpired() {
   if (!app.auth?.required) return;
   await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => undefined);
-  renderAuthGate("La sesión ha caducado. Solicita un nuevo enlace de acceso.");
+  renderAuthGate(app.auth?.mode === "password"
+    ? "La sesión ha caducado. Introduce de nuevo la contraseña del equipo."
+    : "La sesión ha caducado. Solicita un nuevo enlace de acceso.");
 }
 
 function bindEvents() {
@@ -230,6 +260,15 @@ function bindEvents() {
       }
 
       if (name === "post-publish") {
+        const post = findPost(action.dataset.id);
+        if (post?.status !== "scheduled" || !post?.editorialApprovedAt || !post?.scheduledFor) {
+          toast("Aprueba el post y prográmalo antes de publicarlo.", true);
+          return;
+        }
+        if (new Date(post.scheduledFor).getTime() > Date.now()) {
+          toast("El post se podrá enviar al llegar la fecha programada.", true);
+          return;
+        }
         if (!app.state?.hasSocialWebhook) {
           toast("La publicación automática no está conectada. Marca el post como listo para revisión.", true);
           return;
@@ -679,6 +718,10 @@ function bindEvents() {
         }
         const scheduledFor = new Date(selectedDate).toISOString();
         const post = findPost(action.dataset.id);
+        if (post?.status !== "ready" && post?.status !== "scheduled") {
+          toast("Aprueba el post antes de programarlo.", true);
+          return;
+        }
         const payload = { scheduledFor };
         if (qualityReviewRequired(post)) {
           if (!confirm(qualityReviewMessage(post?.qualityGate, "post"))) return;
@@ -1208,6 +1251,8 @@ function channelPreview(post) {
   const ad = post.adaptations || {};
   const xText = (ad.x || {}).short_version || "";
   const fb = (ad.facebook || {}).final_post || "";
+  const instagram = (ad.instagram || {}).caption || "";
+  const instagramTags = (ad.instagram || {}).hashtags || [];
   const nl = (s) => escapeHtml(s).replace(/\n/g, "<br>");
   const xOver = xText.length > 280;
   return `
@@ -1220,7 +1265,7 @@ function channelPreview(post) {
           <div class="cp-meta">${li.length} caracteres</div>
         </div>
         <div class="cp-card cp-x">
-          <div class="cp-head"><span class="cp-avatar">NGP</span><div class="cp-id"><strong>Nexia GP</strong><small>@nexiagp</small></div><span class="cp-logo">X</span></div>
+          <div class="cp-head"><span class="cp-avatar">NGP</span><div class="cp-id"><strong>Nexia GP</strong><small>@NexiaGP</small></div><span class="cp-logo">X</span></div>
           <div class="cp-body">${xText ? nl(xText) : "<em>Sin adaptación a X</em>"}</div>
           ${xText ? `<div class="cp-meta ${xOver ? "cp-over" : "cp-ok"}">${xText.length}/280${xOver ? " · excede" : ""}</div>` : ""}
         </div>
@@ -1228,6 +1273,12 @@ function channelPreview(post) {
           <div class="cp-head"><span class="cp-avatar">NGP</span><div class="cp-id"><strong>Nexia Growth Partner</strong><small>Facebook</small></div><span class="cp-logo">f</span></div>
           <div class="cp-body">${fb ? nl(fb) : "<em>Sin adaptación a Facebook</em>"}</div>
           ${fb ? `<div class="cp-meta">${fb.length} caracteres</div>` : ""}
+        </div>
+        <div class="cp-card cp-instagram">
+          <div class="cp-head"><span class="cp-avatar">NGP</span><div class="cp-id"><strong>Nexia Growth Partner</strong><small>Instagram · perfil pendiente</small></div><span class="cp-logo">◎</span></div>
+          <div class="cp-body">${instagram ? nl(instagram) : "<em>Sin adaptación a Instagram</em>"}</div>
+          ${instagramTags.length ? `<div class="cp-tags">${instagramTags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join(" ")}</div>` : ""}
+          ${instagram ? `<div class="cp-meta">${instagram.length} caracteres · imagen por aprobar</div>` : ""}
         </div>
       </div>
     </div>`;
@@ -1421,7 +1472,7 @@ function editorialPostCard(post) {
       </details>
 
       <details class="review-disclosure">
-        <summary><span>${iconSvg("send")}Adaptaciones multicanal</span><small>X y Facebook</small></summary>
+        <summary><span>${iconSvg("send")}Adaptaciones multicanal</span><small>X, Facebook e Instagram</small></summary>
         <section class="review-panel">${adaptationBlocks(post.id, adaptations)}</section>
       </details>
 
@@ -2157,6 +2208,7 @@ function renderStrategy() {
           ${promptPath("Validator", "src/ai/prompts/validator_v1.txt")}
           ${promptPath("Adaptación X", "src/ai/prompts/transformers/adaptacion_x_v1.txt")}
           ${promptPath("Adaptación Facebook", "src/ai/prompts/transformers/adaptacion_facebook_v1.txt")}
+          ${promptPath("Adaptación Instagram", "src/ai/prompts/transformers/adaptacion_instagram_v1.txt")}
         </div>
       </div>
       <div class="panel">
@@ -2379,6 +2431,9 @@ async function scheduleCalendarItem(kind, id, selectedDate, button) {
   const isBlog = kind === "blog";
   const item = isBlog ? (app.state.blogs || []).find((blog) => blog.id === id) : findPost(id);
   if (!item) throw new Error("La pieza ya no está disponible para planificación.");
+  if (!isBlog && item.status !== "ready" && item.status !== "scheduled") {
+    throw new Error("Aprueba el post antes de asignarle fecha.");
+  }
   const payload = { scheduledFor: scheduledAt.toISOString() };
   if (qualityReviewRequired(item)) {
     if (!confirm(qualityReviewMessage(item?.qualityGate, isBlog ? "blog" : "post"))) return null;
@@ -2409,7 +2464,7 @@ function renderAutomation() {
         ${selectField("defaultPostTypeId", "Tipo por defecto", editorialPostTypeOptions(), settings.defaultPostTypeId || "educativo_autoridad")}
         <label>Modo de salida<select name="publishMode">${publishModeOptions(settings.publishMode)}</select></label>
         ${schedulerRotationHint(settings)}
-        ${app.state.hasSocialWebhook ? "" : `<p class="form-hint muted">La publicación automática se desbloquea al conectar el webhook social. Mientras tanto, el flujo termina en revisión.</p>`}
+        <p class="form-hint muted">La generación acaba en revisión. Cada post necesita aprobación y fecha; la conexión de redes se verifica por separado.</p>
         <input type="hidden" name="model" value="${escapeAttr(settings.model || "")}" />
         <input type="hidden" name="vectorStoreId" value="${escapeAttr(settings.vectorStoreId || "")}" />
         <input type="hidden" name="vectorStoreName" value="${escapeAttr(settings.vectorStoreName || "")}" />
@@ -2432,12 +2487,11 @@ function schedulerRotationHint(settings) {
 }
 
 function publishModeOptions(selected) {
-  const automaticAvailable = Boolean(app.state?.hasSocialWebhook);
-  const active = selected === "auto" && !automaticAvailable ? "ready" : selected;
+  const active = selected === "auto" ? "ready" : selected;
   return `
     <option value="draft" ${active === "draft" ? "selected" : ""}>Borrador</option>
     <option value="ready" ${active === "ready" ? "selected" : ""}>Listo</option>
-    <option value="auto" ${active === "auto" ? "selected" : ""} ${automaticAvailable ? "" : "disabled"}>Automático${automaticAvailable ? "" : " · requiere webhook"}</option>`;
+    <option value="auto" disabled>Automático · pendiente de conexión</option>`;
 }
 
 function renderSettings() {
@@ -2727,6 +2781,11 @@ function adaptationBlocks(postId, adaptations) {
         <div class="channel-card-head"><strong>Facebook</strong><button class="icon-button" type="button" data-action="copy-adaptation" data-channel="facebook" data-id="${escapeAttr(postId)}" title="Copiar Facebook">${iconSvg("copy")}</button></div>
         <p class="copy-block">${escapeHtml(adaptations.facebook?.final_post || "")}</p>
       </div>
+      <div class="channel-card">
+        <div class="channel-card-head"><strong>Instagram</strong><button class="icon-button" type="button" data-action="copy-adaptation" data-channel="instagram" data-id="${escapeAttr(postId)}" title="Copiar Instagram">${iconSvg("copy")}</button></div>
+        <p class="copy-block">${escapeHtml(adaptations.instagram?.caption || "Pendiente de generar")}</p>
+        <small>La imagen debe seleccionarse y aprobarse antes de publicar.</small>
+      </div>
     </div>
   `;
 }
@@ -2917,6 +2976,10 @@ function getAdaptationText(post, channel) {
   if (channel === "x") {
     const x = post.adaptations.x || {};
     return [x.short_version, x.alternative, ...(x.thread || [])].filter(Boolean).join("\n\n");
+  }
+  if (channel === "instagram") {
+    const instagram = post.adaptations.instagram || {};
+    return [instagram.caption, instagram.cta, (instagram.hashtags || []).join(" ")].filter(Boolean).join("\n\n");
   }
   const fb = post.adaptations.facebook || {};
   return [fb.final_post, fb.cta].filter(Boolean).join("\n\n");

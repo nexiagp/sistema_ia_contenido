@@ -3,6 +3,11 @@
 **Actualizado:** 1 de septiembre de 2026
 **Uso:** equipo editorial y mantenimiento técnico de la conexión con `nexiagp.com`.
 
+**Revisión del 26/10/2026:** las tres vistas previas muestran la portada repetida dentro del
+artículo. El exportador corregido la omite y retira recursos sin enlace, pero ese cambio aún no
+está desplegado ni aplicado a los borradores existentes. La portada del artículo de logística
+debe sustituirse por una imagen sin mapa ni datos simulados. Ver [revisión visual y enlaces](REVISION_BLOGS_Y_REDES_2026-10-26.md).
+
 ## Estado actual
 
 - La aplicación de producción se autentica con Supabase y usa el estado remoto como fuente de verdad.
@@ -60,7 +65,7 @@ entrada de WordPress.
 | --- | --- |
 | Título, slug, HTML y extracto | Entrada en `draft` |
 | Figuras editoriales | Biblioteca de medios, con JPEG optimizado |
-| Primera figura | Imagen destacada |
+| Figura `hero` o primera figura | Imagen destacada, sin repetirse dentro del cuerpo tras aplicar el exportador corregido |
 | Caption de figura | Texto alternativo y pie de imagen |
 | ID, URL, hash y fecha del borrador | Trazabilidad para actualizar sin duplicar |
 | SEO de Rank Math | Sólo si el plugin expone el campo por API; si no, revisión manual |

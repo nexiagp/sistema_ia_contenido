@@ -122,12 +122,13 @@ class EditorialPipeline:
 
 
 def _adaptations_complete(adaptations: Any) -> bool:
-    """True solo si hay version de X (short_version) y de Facebook (final_post)."""
+    """Require channel-ready copy for X, Facebook and Instagram."""
     if not isinstance(adaptations, dict):
         return False
     x = adaptations.get("x") or {}
     facebook = adaptations.get("facebook") or {}
-    return bool(x.get("short_version")) and bool(facebook.get("final_post"))
+    instagram = adaptations.get("instagram") or {}
+    return bool(x.get("short_version")) and bool(facebook.get("final_post")) and bool(instagram.get("caption"))
 
 
 def normalize_request(request: dict[str, Any]) -> dict:

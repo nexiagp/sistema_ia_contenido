@@ -41,9 +41,10 @@ PROMPT_REGISTRY: "dict[str, dict]" = {
     "post_types/encuesta_pulso_v1.txt":             {"label": "Encuesta / Pulso",                "group": "post_types", "scope": "posts"},
     "post_types/dato_opinion_v1.txt":               {"label": "Dato + Opinion",                  "group": "post_types", "scope": "posts"},
 
-    # --- Transformers (2) ---
+    # --- Transformers (3) ---
     "transformers/adaptacion_x_v1.txt":        {"label": "Adaptación X (Twitter)", "group": "transformers", "scope": "posts"},
     "transformers/adaptacion_facebook_v1.txt": {"label": "Adaptación Facebook",    "group": "transformers", "scope": "posts"},
+    "transformers/adaptacion_instagram_v1.txt": {"label": "Adaptación Instagram", "group": "transformers", "scope": "posts"},
 
     # --- Blog ---
     "blog_planner_v1.txt": {"label": "Blog · Planner", "group": "blog", "scope": "blog"},
@@ -69,6 +70,7 @@ POST_TYPE_PROMPTS = {
 TRANSFORMER_PROMPTS = {
     "adaptacion_x": "transformers/adaptacion_x_v1.txt",
     "adaptacion_facebook": "transformers/adaptacion_facebook_v1.txt",
+    "adaptacion_instagram": "transformers/adaptacion_instagram_v1.txt",
 }
 
 

@@ -99,8 +99,31 @@ class WordPressArticleTests(unittest.TestCase):
 
         self.assertEqual(result["uploadedImages"], 0)
         self.assertEqual(captured["featured_media_id"], 77)
-        self.assertIn("wp-image-77", captured["content"])
+        self.assertNotIn("wp-image-77", captured["content"])
+        self.assertIn("<p>Cuerpo.</p>", captured["content"])
         self.assertEqual(result["post"]["postId"], 123)
+
+    def test_export_keeps_inline_images_and_only_available_resources(self) -> None:
+        source = """
+        <article class="blog-post"><h1>Artículo</h1>
+          <figure data-figure-id="hero"></figure>
+          <p>Introducción.</p>
+          <figure data-figure-id="detail"></figure>
+          <aside class="lead-magnet"><h3>Guía futura</h3><span class="lm-pending">descargar</span></aside>
+          <aside class="lead-magnet"><h3>Guía real</h3><a href="https://nexiagp.com/guia/">Descargar</a></aside>
+        </article>
+        """
+        media = {
+            "hero": {"mediaId": 1, "sourceUrl": "https://nexiagp.com/hero.jpg"},
+            "detail": {"mediaId": 2, "sourceUrl": "https://nexiagp.com/detail.jpg"},
+        }
+
+        result = clean_wordpress_article(source, media, featured_figure_id="hero")
+
+        self.assertNotIn("wp-image-1", result)
+        self.assertIn("wp-image-2", result)
+        self.assertNotIn("Guía futura", result)
+        self.assertIn("Guía real", result)
 
     def test_sync_applies_rank_math_fields_only_when_wordpress_registers_them(self) -> None:
         service = WordPressService(base_url="https://example.com", username="editor", application_password="test")

@@ -1,6 +1,6 @@
 # Nexia GP Content AI
 
-Aplicación editorial de Nexia Growth Partner para crear, revisar, ilustrar y planificar contenido B2B: publicaciones de LinkedIn con adaptaciones a X/Facebook y artículos de blog orientados a SEO.
+Aplicación editorial de Nexia Growth Partner para crear, revisar, ilustrar y planificar contenido B2B: publicaciones de LinkedIn con adaptaciones a X, Facebook e Instagram y artículos de blog orientados a SEO.
 
 **Producción:** <https://nexiagp-content.vercel.app>
 **Código:** <https://github.com/nexiagp/sistema_ia_contenido>
@@ -10,22 +10,25 @@ Aplicación editorial de Nexia Growth Partner para crear, revisar, ilustrar y pl
 - **Para utilizar la aplicación:** [Guía completa de uso](docs/GUIA_DE_USO.md).
 - **Para operar, mantener o desplegar:** [Arquitectura y operación](docs/ARQUITECTURA_Y_OPERACION.md).
 - **Para crear y revisar borradores web:** [Runbook de WordPress](docs/WORDPRESS_RUNBOOK.md).
+- **Para el estado comprobado de blogs, acceso y redes (26/10/2026):** [Revisión y pasos pendientes](docs/REVISION_BLOGS_Y_REDES_2026-10-26.md).
 - **Para las fuentes de fabricantes y el plan de continuidad:** [Estado y hoja de ruta (31/08/2026)](docs/ESTADO_Y_HOJA_DE_RUTA_2026-08-31.md).
 - **Para retomar el desarrollo:** [Estado del proyecto](PROJECT_STATE.md) y [changelog](CHANGELOG.md).
 
-La URL de producción requiere una sesión autorizada de Nexia GP. El acceso se gestiona mediante
-Supabase; no compartas cuentas, credenciales técnicas ni contraseñas de aplicación.
+El acceso de equipo por contraseña está preparado y comprobado localmente. Las variables privadas
+ya están configuradas en el proyecto Vercel de Nexia GP; el cambio de código se hará efectivo con
+el siguiente despliegue.
 
 ## Qué permite hacer
 
-- Crear borradores de posts para LinkedIn y sus adaptaciones para X y Facebook, a partir de una pauta editorial, fuentes y prompts versionados.
+- Crear borradores de posts para LinkedIn y sus adaptaciones para X, Facebook e Instagram, a partir de una pauta editorial, fuentes y prompts versionados.
 - Revisar, editar, copiar, exportar y aprobar las piezas antes de llevarlas al calendario editorial.
 - Generar y comparar imágenes de post; aplicar marco y logo Nexia por separado y descargar el PNG final elegido.
 - Crear artículos de blog con HTML, SEO, JSON-LD, fuentes, figuras y vista previa editorial.
 - Cargar y sincronizar documentos en la biblioteca de fuentes para alimentar el contexto de generación.
 - Gestionar calendario, cadencia, automatización de borradores, tipos de contenido, prompts y límites operativos.
 
-La agenda es editorial: **programar una pieza no la publica en redes**. La publicación social queda desactivada mientras no se configure una integración social aprobada (`SOCIAL_WEBHOOK_URL`).
+La agenda es editorial: **programar una pieza no la publica en redes**. Las cuentas de X,
+LinkedIn e Instagram no tienen todavía una conexión de publicación verificada.
 
 ## Arquitectura de producción
 

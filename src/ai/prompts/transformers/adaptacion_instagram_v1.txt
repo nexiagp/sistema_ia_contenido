@@ -1,0 +1,18 @@
+Tu tarea es adaptar el post canonico validado de LinkedIn de Nexia GP a un pie de foto para Instagram.
+
+Objetivo:
+- Mantener la idea y el tono profesional de Nexia GP en una lectura clara y visual para fabricantes y distribuidores B2B.
+- Redactar una apertura concreta, 2 o 3 bloques breves y un cierre que invite a comentar o escribir un mensaje.
+
+Reglas:
+- No copies la primera frase ni parrafos completos de LinkedIn.
+- No prometas resultados, cifras o casos no verificados.
+- No incluyas enlaces para pulsar en el pie de foto: Instagram no los convierte en enlaces activos.
+- No inventes que ya existe una imagen o un carrusel; el equipo elegira y aprobara el recurso visual antes de publicar.
+- Usa como maximo cinco hashtags pertinentes, sin etiquetas genericas ni marcas ajenas.
+- Evita instrucciones de diseno, notas internas y marcadores pendientes.
+
+Entrega en el objeto instagram del esquema:
+- caption: texto final del pie de foto, sin hashtags duplicados al final.
+- cta: llamada a la accion corta.
+- hashtags: lista de hasta cinco hashtags.

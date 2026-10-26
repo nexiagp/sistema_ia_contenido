@@ -39,6 +39,7 @@ from src.ai.services.context_helpers import normalize_hashtags
 from src.ai.services.content_quality import blog_quality_gate, post_quality_gate, sanitize_article_html
 from src.ai.services import prompt_service
 from src.platform.supabase_store import SupabaseStore, SupabaseStoreError
+from src.platform.team_auth import issue_session, valid_password_hash, valid_session_secret, verify_password, verify_session
 from src.domain.editorial import AUDIENCES, CHANNELS, CTA_TYPES, OBJECTIVES, POST_TYPES, RISK_FLAGS
 from src.domain.blog import (
     BLOG_AUDIENCES,
@@ -181,8 +182,25 @@ class AppHandler(SimpleHTTPRequestHandler):
                 return
 
             if self.command == "POST" and path == "/api/auth/session":
+                if auth_mode() != "supabase":
+                    raise ApiError("Este método de acceso no está activo.", 404)
+                self.require_same_origin()
                 user = self.authenticate_request(require_bearer=True)
                 self.send_json({"ok": True, "user": public_user(user)}, extra_headers={"set-cookie": auth_cookie_header(self.bearer_token())})
+                return
+
+            if self.command == "POST" and path == "/api/auth/password":
+                if auth_mode() != "password":
+                    raise ApiError("Este método de acceso no está activo.", 404)
+                self.require_same_origin()
+                if not auth_is_configured():
+                    raise ApiError("El acceso protegido no está configurado todavía.", 503, "auth_not_configured")
+                password = self.read_json().get("password")
+                if not verify_password(password, os.getenv("NEXIAGP_SHARED_PASSWORD_HASH", "")):
+                    raise ApiError("Contraseña incorrecta.", 401, "invalid_credentials")
+                token = issue_session(os.getenv("NEXIAGP_SESSION_SECRET", ""))
+                user = {"role": "admin", "label": "Equipo Nexia GP"}
+                self.send_json({"ok": True, "user": public_user(user)}, extra_headers={"set-cookie": auth_cookie_header(token)})
                 return
 
             if self.command == "GET" and path == "/api/auth/session":
@@ -191,6 +209,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                 return
 
             if self.command == "POST" and path == "/api/auth/logout":
+                self.require_same_origin()
                 self.send_json({"ok": True}, extra_headers={"set-cookie": expired_auth_cookie_header()})
                 return
 
@@ -260,7 +279,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                 db["settings"]["schedulerEnabled"] = as_bool(db["settings"].get("schedulerEnabled"), False)
                 if db["settings"].get("publishMode") not in {"draft", "ready", "auto"}:
                     db["settings"]["publishMode"] = "draft"
-                if db["settings"].get("publishMode") == "auto" and not os.getenv("SOCIAL_WEBHOOK_URL"):
+                if db["settings"].get("publishMode") == "auto":
                     db["settings"]["publishMode"] = "ready"
                 write_db(db)
                 self.send_json(decorate_state(db))
@@ -691,6 +710,13 @@ class AppHandler(SimpleHTTPRequestHandler):
     def authenticate_request(self, require_bearer: bool = False) -> dict:
         if not auth_is_configured():
             raise ApiError("El acceso protegido no está configurado todavía.", 503, "auth_not_configured")
+        if auth_mode() == "password":
+            token = "" if require_bearer else self.cookie_token()
+            if not token:
+                raise ApiError("Inicia sesión para continuar.", 401, "authentication_required")
+            if not verify_session(token, os.getenv("NEXIAGP_SESSION_SECRET", "")):
+                raise ApiError("La sesión no es válida o ha caducado.", 401, "invalid_session")
+            return {"role": "admin", "label": "Equipo Nexia GP"}
         token = self.bearer_token() if require_bearer else (self.bearer_token() or self.cookie_token())
         if not token:
             raise ApiError("Inicia sesión para continuar.", 401, "authentication_required")
@@ -746,8 +772,14 @@ class ApiError(Exception):
         self.code = code
 
 
+def auth_mode() -> str:
+    return os.getenv("NEXIAGP_AUTH_MODE", "supabase").strip().lower() or "supabase"
+
+
 def auth_is_required() -> bool:
     """Use an explicit setting, while remaining fail-closed on Vercel by default."""
+    if auth_mode() != "supabase":
+        return True
     configured = os.getenv("NEXIAGP_AUTH_REQUIRED", "").strip().lower()
     if configured in {"0", "false", "no", "off"}:
         return False
@@ -757,6 +789,12 @@ def auth_is_required() -> bool:
 
 
 def auth_is_configured() -> bool:
+    if auth_mode() == "password":
+        return valid_password_hash(os.getenv("NEXIAGP_SHARED_PASSWORD_HASH", "")) and valid_session_secret(
+            os.getenv("NEXIAGP_SESSION_SECRET", "")
+        )
+    if auth_mode() != "supabase":
+        return False
     return bool(
         SUPABASE_STORE.enabled
         and os.getenv("SUPABASE_PUBLISHABLE_KEY", "").strip()
@@ -766,8 +804,8 @@ def auth_is_configured() -> bool:
 def auth_public_config() -> dict:
     required = auth_is_required()
     configured = auth_is_configured()
-    payload = {"ok": True, "required": required, "configured": configured}
-    if required and configured:
+    payload = {"ok": True, "required": required, "configured": configured, "mode": auth_mode()}
+    if required and configured and auth_mode() == "supabase":
         payload.update(
             {
                 "url": SUPABASE_STORE.url,
@@ -778,7 +816,7 @@ def auth_public_config() -> dict:
 
 
 def public_user(user: dict) -> dict:
-    return {"email": user.get("email", ""), "role": user.get("role", "viewer")}
+    return {"email": user.get("email", ""), "label": user.get("label", ""), "role": user.get("role", "viewer")}
 
 
 def auth_cookie_header(token: str) -> str:
@@ -838,7 +876,7 @@ def generate_posts(theme_id: str, post_type_id: str, count: int, desired_status:
     created_at = now_iso()
     new_posts = []
     for item in generated["posts"]:
-        post_status = "ready" if item.get("statusRecommendation") == "ready" else status
+        post_status = "review" if item.get("statusRecommendation") == "ready" or status in {"ready", "scheduled", "published"} else "draft"
         post = {
             "id": uid("post"),
             "themeId": theme["id"],
@@ -880,9 +918,6 @@ def generate_posts(theme_id: str, post_type_id: str, count: int, desired_status:
         theme_ref = next((item for item in fresh.get("themes", []) if item["id"] == theme["id"]), None)
         if theme_ref is not None:
             theme_ref["usedIdeas"] = (new_idea_entries + theme_ref.get("usedIdeas", []))[:200]
-        if fresh["settings"].get("publishMode") == "auto" or desired_status == "auto":
-            for post in new_posts:
-                publish_post(fresh, post)
         state = decorate_state(fresh)
     return {"ok": True, "posts": new_posts, "provider": provider, "state": state}
 
@@ -2741,10 +2776,9 @@ def run_scheduler(force: bool, source: str) -> dict:
         # its draft declares the approved default for the first visual an
         # editor requests: Nexia frame plus logo.
         post["imageDefaults"] = {"withFrame": True, "withLogo": True}
-        if db["settings"].get("publishMode") == "ready" and not has_unacknowledged_quality_gate(post):
-            post["status"] = "ready"
-        elif db["settings"].get("publishMode") == "auto" and not has_unacknowledged_quality_gate(post):
-            publish_post(db, post)
+        if db["settings"].get("publishMode") in {"ready", "auto"} and not has_unacknowledged_quality_gate(post):
+            post["status"] = "review"
+            post["schedulerReviewReason"] = "Pendiente de aprobación editorial y fecha programada."
         elif db["settings"].get("publishMode") in {"ready", "auto"}:
             post["schedulerReviewReason"] = "La puerta de calidad mantuvo el post en borrador."
         generated.append(post)
@@ -2834,6 +2868,14 @@ def publish_post(db: dict, post: dict, *, require_webhook: bool = False) -> None
             409,
             "quality_review_required",
         )
+    if post.get("status") != "scheduled" or not post.get("editorialApprovedAt"):
+        raise ApiError("Aprueba el post y prográmalo antes de publicarlo.", 409, "editorial_schedule_required")
+    try:
+        scheduled_at = datetime.fromisoformat(str(post.get("scheduledFor") or "").replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ApiError("La fecha programada no es válida.", 409, "editorial_schedule_required") from exc
+    if scheduled_at.tzinfo is None or scheduled_at > datetime.now(timezone.utc):
+        raise ApiError("El post todavía no ha llegado a su fecha programada.", 409, "scheduled_time_pending")
     webhook = os.getenv("SOCIAL_WEBHOOK_URL")
     if not webhook:
         if require_webhook:
@@ -2941,6 +2983,8 @@ def apply_post_edits(post: dict, body: dict) -> None:
 
     if "status" in body:
         requested_status = normalize_status(body.get("status") or post.get("status"))
+        if requested_status in {"published", "scheduled"}:
+            raise ApiError("Usa la programación y la publicación verificadas para cambiar este estado.", 409)
         if requested_status in {"ready", "scheduled"} and has_unacknowledged_quality_gate(post):
             raise ApiError(
                 "El post requiere revisión humana registrada antes de prepararlo para calendario.",
@@ -2948,10 +2992,15 @@ def apply_post_edits(post: dict, body: dict) -> None:
                 "quality_review_required",
             )
         post["status"] = requested_status
-        if post["status"] != "scheduled":
-            post.pop("scheduledFor", None)
+        post.pop("scheduledFor", None)
+        if requested_status == "ready":
+            post["editorialApprovedAt"] = now_iso()
+        else:
+            post.pop("editorialApprovedAt", None)
 
     if "scheduledFor" in body:
+        if post.get("status") not in {"ready", "scheduled"} or not post.get("editorialApprovedAt"):
+            raise ApiError("Aprueba el post antes de asignarle fecha.", 409, "editorial_approval_required")
         if has_unacknowledged_quality_gate(post):
             raise ApiError(
                 "El post requiere revisión humana registrada antes de programarlo.",
@@ -2967,6 +3016,8 @@ def apply_post_edits(post: dict, body: dict) -> None:
             raise ApiError("La fecha de planificación no es válida", 400) from exc
         if planned_at.tzinfo is None:
             planned_at = planned_at.replace(tzinfo=timezone.utc)
+        if planned_at <= datetime.now(timezone.utc):
+            raise ApiError("Elige una fecha futura para programar el post.", 400, "future_date_required")
         post["scheduledFor"] = planned_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
         post["status"] = "scheduled"
 
@@ -2999,6 +3050,10 @@ def apply_post_edits(post: dict, body: dict) -> None:
 
     if any(key in body for key in ("copy", "cta", "hashtags", "title")):
         post["edited"] = True
+        if post.get("editorialApprovedAt") or post.get("scheduledFor"):
+            post.pop("editorialApprovedAt", None)
+            post.pop("scheduledFor", None)
+            post["status"] = "review"
         gate = post.get("qualityGate")
         if isinstance(gate, dict) and gate.get("blockers"):
             gate.pop("reviewAcknowledgedAt", None)
@@ -3361,7 +3416,7 @@ def collect_used_ideas(db: dict, theme_id: str) -> list[str]:
 
 
 def normalize_status(status: str | None) -> str:
-    if status in {"draft", "ready", "published", "scheduled"}:
+    if status in {"draft", "review", "ready", "published", "scheduled"}:
         return status
     if status == "auto":
         return "ready"
