@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import cgi
+import hashlib
 import json
 import mimetypes
 import os
@@ -452,6 +453,12 @@ class AppHandler(SimpleHTTPRequestHandler):
                 self.require_wordpress_sync_access()
                 self.read_json()  # Reserve a request body for future explicit sync options.
                 self.send_json(sync_blog_to_wordpress_draft(wordpress_draft_match.group(1)))
+                return
+
+            wordpress_publish_match = re.match(r"^/api/blogs/([^/]+)/wordpress/publish$", path)
+            if wordpress_publish_match and self.command == "POST":
+                self.require_wordpress_sync_access()
+                self.send_json(publish_blog_to_wordpress(wordpress_publish_match.group(1), self.read_json()))
                 return
 
             blog_match = re.match(r"^/api/blogs/([^/]+)$", path)
@@ -1604,6 +1611,83 @@ def _wordpress_optional_id(name: str) -> int | None:
     return value if value > 0 else None
 
 
+def blog_wordpress_fingerprint(blog: dict) -> str:
+    """Identify the reviewed content and media that produced a WordPress draft."""
+    article = blog.get("article") or {}
+    seo = blog.get("seo") or {}
+    payload = {
+        "title": blog.get("title") or (blog.get("brief") or {}).get("h1"),
+        "slug": blog.get("slug") or seo.get("slug"),
+        "html": article.get("article_html_override") or article.get("article_html"),
+        "metaTitle": blog.get("metaTitle") or seo.get("meta_title"),
+        "metaDescription": blog.get("metaDescription") or seo.get("meta_description"),
+        "keyword": blog.get("primaryKeyword") or (blog.get("brief") or {}).get("primary_keyword"),
+        "figures": [
+            {"id": item.get("figure_id"), "image": (item.get("image") or {}).get("url"), "caption": item.get("caption")}
+            for item in blog.get("figures") or [] if isinstance(item, dict)
+        ],
+    }
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def publish_blog_to_wordpress(blog_id: str, body: dict) -> dict:
+    """Publish one reviewed, current, SEO-checked WordPress draft on explicit request."""
+    if not isinstance(body, dict):
+        raise ApiError("Indica la revisión de Rank Math antes de publicar.", 400, "publish_review_required")
+    score = body.get("rankMathScore")
+    if isinstance(score, bool) or not isinstance(score, int) or not 70 <= score <= 100 or body.get("rankMathReviewed") is not True:
+        raise ApiError("Revisa Rank Math en WordPress y confirma una puntuación de al menos 70.", 409, "rank_math_review_required")
+    service = WordPressService()
+    if not service.enabled:
+        raise ApiError("La conexión con WordPress no está configurada en el servidor.", 503, "wordpress_not_configured")
+    with transaction() as db:
+        blog = next((item for item in db.get("blogs", []) if item.get("id") == blog_id), None)
+        if not blog:
+            raise ApiError("Blog no encontrado", 404)
+        if blog.get("status") not in {"ready", "scheduled"}:
+            raise ApiError("Aprueba primero el contenido antes de publicarlo.", 409, "blog_not_ready_for_wordpress")
+        gate = refresh_blog_quality_gate(blog)
+        if gate.get("blockers") or gate.get("warnings"):
+            raise ApiError("Resuelve todos los avisos de calidad y SEO antes de publicar.", 409, "blog_quality_not_clear")
+        wordpress = blog.get("wordpress") if isinstance(blog.get("wordpress"), dict) else {}
+        post_id = wordpress.get("postId")
+        if not post_id or wordpress.get("status") != "draft":
+            raise ApiError("Crea primero un borrador de WordPress vigente.", 409, "wordpress_draft_required")
+        if wordpress.get("editorialFingerprint") != blog_wordpress_fingerprint(blog):
+            raise ApiError("El contenido cambió desde el último envío a WordPress. Actualiza el borrador antes de publicar.", 409, "wordpress_draft_outdated")
+        seo = blog.get("seo") or {}
+        keyword = str(blog.get("primaryKeyword") or (blog.get("brief") or {}).get("primary_keyword") or "").strip()
+        meta_title = str(blog.get("metaTitle") or seo.get("meta_title") or "").strip()
+        description = str(blog.get("metaDescription") or seo.get("meta_description") or "").strip()
+        if not keyword or not meta_title or not 110 <= len(description) <= 170:
+            raise ApiError("Completa la palabra clave, el título SEO y una descripción de 110 a 170 caracteres.", 409, "seo_fields_incomplete")
+        rank_math = wordpress.get("rankMath") if isinstance(wordpress.get("rankMath"), dict) else {}
+        required_meta = {"rank_math_title", "rank_math_description", "rank_math_focus_keyword"}
+        confirmed_meta = set(rank_math.get("applied") or []) | set(rank_math.get("submitted") or [])
+        if rank_math.get("error") or not required_meta.issubset(confirmed_meta):
+            raise ApiError("Rank Math no confirmó el envío de los tres campos SEO.", 409, "rank_math_meta_incomplete")
+        try:
+            remote = service.publish_owned_draft(
+                int(post_id), blog_id, author_id=2,
+                expected_slug=str(blog.get("slug") or seo.get("slug") or "").strip(),
+                expected_title=str(blog.get("title") or (blog.get("brief") or {}).get("h1") or "").strip(),
+            )
+        except (WordPressError, ValueError, TypeError) as exc:
+            message = str(exc) if isinstance(exc, WordPressError) else "No se pudo verificar el borrador de WordPress."
+            raise ApiError(message, 502, "wordpress_publish_failed") from exc
+        published_at = str(remote.get("date_gmt") or "").strip()
+        blog["publishedAt"] = f"{published_at}Z" if published_at and not published_at.endswith("Z") else published_at or now_iso()
+        blog["status"] = "published"
+        blog.pop("scheduledFor", None)
+        blog["wordpress"] = {
+            **wordpress, "status": "publish", "postUrl": str(remote["link"]), "lastCheckedAt": now_iso(),
+            "rankMath": {**rank_math, "reviewedScore": score, "reviewedAt": now_iso()},
+        }
+        blog["updatedAt"] = now_iso()
+        return {"ok": True, "blog": blog, "state": decorate_state(db)}
+
+
 def wordpress_public_config() -> dict:
     """Return editor-safe status only; credentials never leave the server."""
     config = WordPressService().public_config()
@@ -1701,6 +1785,7 @@ def sync_blog_to_wordpress_draft(blog_id: str) -> dict:
             **(target.get("wordpress") if isinstance(target.get("wordpress"), dict) else {}),
             **sync["post"],
             "contentHash": sync["contentHash"],
+            "editorialFingerprint": blog_wordpress_fingerprint(target),
             "lastSyncAt": now_iso(),
             "lastAttemptAt": now_iso(),
             "lastError": None,

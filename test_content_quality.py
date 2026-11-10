@@ -129,6 +129,25 @@ class ContentQualityTests(unittest.TestCase):
         self.assertIn("lm-pending", cleaned)
         self.assertIn('href="https://nexiagp.com/contacto/"', cleaned)
 
+    def test_blog_html_keeps_https_sources_but_rejects_unsafe_external_links(self) -> None:
+        source = 'https://www.gobiernodecanarias.org/boc/2022/058/002.html'
+        cleaned = sanitize_article_html(
+            f'<p><a href="{source}">Fuente oficial</a> '
+            '<a href="http://example.com/">Sin HTTPS</a> '
+            '<a href="https://localhost/private">Local</a></p>'
+        )
+        self.assertIn(f'href="{source}"', cleaned)
+        self.assertEqual(cleaned.count("lm-pending"), 2)
+
+    def test_blog_gate_blocks_unresolved_links(self) -> None:
+        article = {"article_html": '<article><h1>Demo</h1><p><a href="http://example.com">Pendiente</a></p></article>'}
+        _safe_article, _seo, gate = blog_quality_gate(
+            {"length": "corto", "images_per_article": 0},
+            {"primary_keyword": "demo"}, {"sources": [{"title": "Fuente"}]}, article,
+            {"schema_jsonld": {"@type": "Article"}},
+        )
+        self.assertTrue(any("pendientes" in blocker for blocker in gate["blockers"]))
+
     def test_blog_gate_uses_actual_word_count_and_valid_schema(self) -> None:
         article = {
             "article_html": "<article><h1>Guía B2B</h1><figure data-figure-id=\"hero\"><figcaption>Imagen</figcaption></figure><p>"

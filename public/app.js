@@ -623,6 +623,23 @@ function bindEvents() {
         return;
       }
 
+      if (name === "blog-wordpress-publish") {
+        const scoreField = action.closest(".blog-handoff-action")?.querySelector("[data-rank-math-score]");
+        const score = Number(scoreField?.value);
+        if (!Number.isInteger(score) || score < 70 || score > 100) {
+          toast("Revisa Rank Math en WordPress e indica una puntuación entre 70 y 100.", true);
+          scoreField?.focus();
+          return;
+        }
+        if (!confirm(`Se publicará esta entrada en la web de Nexia GP con el autor Nexia GP. Confirma que has revisado en WordPress el diseño, las fuentes y Rank Math (${score}/100). ¿Publicar ahora?`)) return;
+        await withLoading(action, () => api(`/api/blogs/${action.dataset.id}/wordpress/publish`, {
+          method: "POST",
+          body: JSON.stringify({ rankMathScore: score, rankMathReviewed: true }),
+        }));
+        await loadState("Entrada publicada y comprobada en WordPress");
+        return;
+      }
+
       if (name === "blog-delete") {
         if (!confirm("Eliminar este blog del registro?")) return;
         await withLoading(action, () => api(`/api/blogs/${action.dataset.id}`, { method: "DELETE" }));
@@ -1681,6 +1698,7 @@ function blogDetail(blog) {
   const wordpressDraftExists = Boolean(wordpress.postId && wordpress.postUrl);
   const wordpressPublished = blog.status === "published" && wordpress.status === "publish";
   const wordpressSyncAvailable = wordpressConfigured && approvedForWordPress && !wordpressPublished;
+  const wordpressPublishAvailable = wordpressSyncAvailable && wordpressDraftExists && wordpress.status === "draft" && !!wordpress.editorialFingerprint;
   const approvalControl = wordpressPublished
     ? `<span class="blog-handoff-confirmed">${iconSvg("check")}Publicado</span>`
     : approvedForWordPress
@@ -1691,6 +1709,9 @@ function blogDetail(blog) {
     : wordpressSyncAvailable
     ? `<button class="primary-button" type="button" data-action="blog-wordpress-sync" data-id="${escapeAttr(blog.id)}" title="${wordpressDraftExists ? "Actualiza el borrador existente; no publica" : "Crea un borrador; no publica"}">${iconSvg("upload")}${wordpressDraftExists ? "Actualizar borrador WordPress" : "Crear borrador en WordPress"}</button>`
     : `<button class="secondary-button" type="button" disabled title="${wordpressConfigured ? "Aprueba primero el contenido para WordPress" : "Configura WordPress en el servidor para activar esta acción"}">${iconSvg("upload")}Crear borrador en WordPress</button>`;
+  const publishControl = wordpressPublishAvailable
+    ? `<label class="blog-publish-score">Rank Math revisado en WordPress <input type="number" min="70" max="100" step="1" inputmode="numeric" data-rank-math-score aria-label="Puntuación Rank Math revisada en WordPress"></label><button class="primary-button" type="button" data-action="blog-wordpress-publish" data-id="${escapeAttr(blog.id)}">Publicar en WordPress</button><small class="blog-handoff-note">La puntuación se introduce tras verla en WordPress; la app comprueba el borrador, autor, imágenes, HTML y metadatos antes de publicar.</small>`
+    : "";
   const calendarMessage = blog.scheduledFor
     ? `Agenda editorial reservada para ${formatDate(blog.scheduledFor)}.`
     : "Reserva la fecha desde Calendario cuando el equipo haya validado el plan.";
@@ -1705,7 +1726,7 @@ function blogDetail(blog) {
   const rankMathApplied = Array.isArray(rankMath.applied) ? rankMath.applied : [];
   const rankMathSubmitted = Array.isArray(rankMath.submitted) ? rankMath.submitted : [];
   const rankMathMessage = wordpressPublished
-    ? "Metatítulo, descripción y palabra clave enviados a Rank Math; consulta su análisis en WordPress."
+    ? `Metatítulo, descripción y palabra clave enviados a Rank Math.${Number.isInteger(rankMath.reviewedScore) ? ` Puntuación revisada por el editor: ${rankMath.reviewedScore}/100.` : " Consulta su análisis en WordPress."}`
     : wordpressDraftExists
     ? rankMathApplied.length === 3 && !rankMath.manualReview
       ? `Rank Math aplicado: ${rankMathApplied.map((field) => ({ rank_math_title: "metatítulo", rank_math_description: "metadescripción", rank_math_focus_keyword: "keyword" }[field] || field)).join(", ")}.`
@@ -1751,7 +1772,7 @@ function blogDetail(blog) {
           <li class="blog-handoff-step ${wordpressDraftExists ? "is-complete" : approvedForWordPress ? "is-current" : "is-waiting"}">
             <span class="blog-handoff-index" aria-hidden="true">2</span>
             <div class="blog-handoff-copy"><span>WordPress</span><h4>${wordpressPublished ? "Entrada publicada" : wordpressDraftExists ? "Borrador creado" : "Crear borrador"}</h4><p>${wordpressPublished ? "El artículo y sus imágenes están visibles en la web." : "Inserta el artículo y sus imágenes en la plantilla actual de la web."} ${escapeHtml(rankMathMessage)}</p></div>
-            <div class="blog-handoff-action">${wordpressControl}${wordpressDraftExists ? `<a class="secondary-button" href="${escapeAttr(wordpressPublished ? wordpress.postUrl : wordpress.editUrl || wordpress.postUrl)}" target="_blank" rel="noopener">${iconSvg("expand")}${wordpressPublished ? "Ver entrada" : "Abrir borrador"}</a>` : ""}${wordpressDraftExists && !wordpressPublished ? `<button class="secondary-button" type="button" data-action="blog-status" data-status="published" data-id="${escapeAttr(blog.id)}">Comprobar publicación</button>` : ""}${wordpressError}</div>
+            <div class="blog-handoff-action">${wordpressControl}${wordpressDraftExists ? `<a class="secondary-button" href="${escapeAttr(wordpressPublished ? wordpress.postUrl : wordpress.editUrl || wordpress.postUrl)}" target="_blank" rel="noopener">${iconSvg("expand")}${wordpressPublished ? "Ver entrada" : "Abrir borrador"}</a>` : ""}${wordpressDraftExists && !wordpressPublished ? `<button class="secondary-button" type="button" data-action="blog-status" data-status="published" data-id="${escapeAttr(blog.id)}">Comprobar publicación</button>` : ""}${publishControl}${wordpressError}</div>
           </li>
           <li class="blog-handoff-step ${wordpressPublished || blog.scheduledFor ? "is-complete" : "is-waiting"}">
             <span class="blog-handoff-index" aria-hidden="true">3</span>

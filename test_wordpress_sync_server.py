@@ -34,6 +34,51 @@ class _FakeWordPressService:
 
 
 class WordPressServerSyncTests(unittest.TestCase):
+    def test_direct_publish_requires_current_reviewed_draft_and_persists_confirmation(self) -> None:
+        blog = {
+            "id": "blog_demo", "status": "ready", "title": "Demo", "slug": "demo",
+            "article": {"article_html": "<article><h1>Demo</h1><p>Contenido.</p></article>"},
+            "brief": {"primary_keyword": "demo"},
+            "seo": {"meta_title": "Demo | Nexia GP", "meta_description": "Una guía útil para fabricantes y distribuidores industriales de Canarias que explica el enfoque comercial, el canal y las oportunidades de crecimiento B2B."},
+            "qualityGate": {"blockers": [], "warnings": []},
+            "wordpress": {"postId": 701, "status": "draft", "rankMath": {"submitted": ["rank_math_title", "rank_math_description", "rank_math_focus_keyword"], "error": None}},
+        }
+        blog["wordpress"]["editorialFingerprint"] = server.blog_wordpress_fingerprint(blog)
+        db = {"settings": {}, "themes": [], "postTypes": [], "files": [], "posts": [], "blogs": [blog], "schedulerLog": [], "prompt_overrides": {}, "prompt_versions": {}}
+
+        class PublishingWordPress(_FakeWordPressService):
+            def publish_owned_draft(self, post_id, blog_id, *, author_id, expected_slug, expected_title):
+                assert (post_id, blog_id, author_id, expected_slug, expected_title) == (701, "blog_demo", 2, "demo", "Demo")
+                return {"id": 701, "status": "publish", "author": 2, "link": "https://nexiagp.com/demo/", "date_gmt": "2026-11-10T18:22:00"}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "db.json"
+            db_path.write_text(json.dumps(db), encoding="utf-8")
+            with patch.object(server, "DB_PATH", db_path), patch.object(server, "WordPressService", PublishingWordPress), patch.object(server, "refresh_blog_quality_gate", return_value={"blockers": [], "warnings": []}):
+                result = server.publish_blog_to_wordpress("blog_demo", {"rankMathScore": 76, "rankMathReviewed": True})
+            persisted = json.loads(db_path.read_text(encoding="utf-8"))["blogs"][0]
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(persisted["status"], "published")
+        self.assertEqual(persisted["wordpress"]["rankMath"]["reviewedScore"], 76)
+        self.assertEqual(persisted["wordpress"]["postUrl"], "https://nexiagp.com/demo/")
+
+    def test_direct_publish_rejects_unreviewed_score(self) -> None:
+        with self.assertRaises(server.ApiError) as blocked:
+            server.publish_blog_to_wordpress("blog_demo", {"rankMathScore": 59, "rankMathReviewed": True})
+        self.assertEqual(blocked.exception.code, "rank_math_review_required")
+
+    def test_direct_publish_rejects_outdated_wordpress_draft(self) -> None:
+        blog = {"id": "blog_demo", "status": "ready", "article": {}, "qualityGate": {"blockers": [], "warnings": []}, "wordpress": {"postId": 701, "status": "draft", "editorialFingerprint": "old"}}
+        db = {"settings": {}, "themes": [], "postTypes": [], "files": [], "posts": [], "blogs": [blog], "schedulerLog": [], "prompt_overrides": {}, "prompt_versions": {}}
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "db.json"
+            db_path.write_text(json.dumps(db), encoding="utf-8")
+            with patch.object(server, "DB_PATH", db_path), patch.object(server, "WordPressService", _FakeWordPressService), patch.object(server, "refresh_blog_quality_gate", return_value={"blockers": [], "warnings": []}):
+                with self.assertRaises(server.ApiError) as blocked:
+                    server.publish_blog_to_wordpress("blog_demo", {"rankMathScore": 76, "rankMathReviewed": True})
+        self.assertEqual(blocked.exception.code, "wordpress_draft_outdated")
+
     def test_published_status_requires_matching_live_wordpress_post(self) -> None:
         blog = {
             "id": "blog_wordpress_pilot", "status": "ready", "article": {"article_html": "<article><h1>Piloto</h1></article>"},

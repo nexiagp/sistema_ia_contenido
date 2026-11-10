@@ -3,20 +3,22 @@
 **Actualizado:** 10 de noviembre de 2026
 **Uso:** equipo editorial y mantenimiento técnico de la conexión con `nexiagp.com`.
 
-**Revisión del 10/11/2026:** el exportador y los tres borradores existentes ya usan las clases
+**Revisión del 10/11/2026:** el exportador y las entradas existentes ya usan las clases
 de bloque del tema y dejan el botón de contacto a la plantilla de Elementor. Se omite la imagen
 `hero` del HTML: la plantilla ya coloca la destacada en cabecera y al inicio del cuerpo, como
-en las entradas publicadas. La portada del artículo de logística sigue pendiente de sustituirse por una imagen
-sin mapa ni datos simulados. Ver [revisión visual y enlaces](REVISION_BLOGS_Y_REDES_2026-10-26.md).
+en las entradas publicadas. El 10/11 se publicó el artículo de compraventa (WordPress `7408`),
+con autor **Nexia GP**; los otros dos artículos (`7411` y `7415`) siguen como borradores. La
+portada de logística sigue pendiente de sustituirse por una imagen sin mapa ni datos simulados.
 
 ## Estado actual
 
-- La aplicación de producción se autentica con Supabase y usa el estado remoto como fuente de verdad.
+- La aplicación de producción exige la contraseña del equipo y usa el estado remoto como fuente de verdad.
 - WordPress está conectado mediante un usuario técnico y una contraseña de aplicación almacenada
   únicamente como secreto de Production en Vercel.
-- La integración crea o actualiza **borradores**; no publica ni programa entradas de WordPress.
-- Los tres artículos piloto tienen borrador en WordPress (`draft`). En la aplicación están en
-  revisión y requieren una nueva aprobación editorial antes de volver a sincronizar.
+- La integración crea o actualiza borradores. También permite publicar desde la aplicación
+  después de las comprobaciones descritas abajo; nunca publica por una fecha del calendario.
+- La entrada `7408` figura publicada en WordPress y en la aplicación. Los borradores `7411` y
+  `7415` están en revisión editorial; no deben publicarse hasta resolver sus pendientes.
 - Rank Math está instalado. La integración envía metatítulo, metadescripción y palabra clave
   mediante el endpoint nativo autenticado de Rank Math. La ficha distingue entre valores
   confirmados en la respuesta de WordPress y envío aceptado por Rank Math; la puntuación se
@@ -35,7 +37,7 @@ Crear/actualizar borrador WordPress
         ↓
 Revisar diseño y Rank Math en WordPress
         ↓
-Programar o publicar manualmente desde WordPress
+Publicar desde WordPress o desde Nexia GP tras el control final
 ```
 
 El calendario de Nexia GP organiza el plan editorial; no modifica por sí mismo el estado de una
@@ -51,9 +53,17 @@ entrada de WordPress.
 5. En Rank Math, valida metatítulo, metadescripción, keyword principal y los avisos de análisis.
    La app indica «aplicado» si WordPress devuelve los tres valores guardados; «recibió» si el
    endpoint nativo aceptó el envío sin devolver esos valores.
-6. Marketing programa o publica desde WordPress. Después pulsa **Comprobar publicación** en
-   Nexia GP: la aplicación consulta la entrada asociada y sólo la marca como publicada cuando
-   WordPress confirma que ya es pública.
+6. Para publicar desde la aplicación, introduce la **puntuación que ves en Rank Math** (70–100)
+   y pulsa **Publicar en WordPress**. La aplicación comprueba el contenido y el borrador remoto,
+   pide confirmación explícita, publica y vuelve a leer WordPress para verificar estado y autor.
+7. Si publicas desde WordPress, pulsa **Comprobar publicación** en Nexia GP: la aplicación consulta
+   la entrada asociada y sólo la marca como publicada cuando WordPress confirma que ya es pública.
+
+La puntuación de Rank Math se introduce tras leerla en su editor: la integración actual puede
+enviar sus campos, pero **no leer ni recalcular automáticamente la puntuación**. No interpretes
+el número introducido como una auditoría independiente. Rank Math dispone de una herramienta MCP
+para consultar metadatos y puntuación, pero esta instalación no la tiene conectada a la aplicación;
+activarla exigiría configurar y probar su autenticación. [Documentación de Rank Math](https://rankmath.com/kb/mcp-tools/).
 
 ## Reglas importantes
 
@@ -65,6 +75,14 @@ entrada de WordPress.
 - Un borrador ya asociado se actualiza; una entrada publicada no se sobrescribe desde Nexia GP.
 - Antes de actualizar un borrador existente, la aplicación consulta su estado real en WordPress.
   Si ya está publicado, bloquea la actualización para evitar que vuelva a `draft`.
+- La publicación directa exige: estado `Listo`/`Programado`, control de calidad **sin bloqueos ni
+  avisos**, título SEO, descripción de 110–170 caracteres, palabra clave, los tres campos de
+  Rank Math enviados, borrador vigente y comprobado, autor `2` (**Nexia GP**), imagen destacada,
+  HTML sin H1/cabecera duplicados ni enlaces pendientes, párrafos de bloque y al menos un H2.
+  Una revisión editorial que aceptó bloqueos para crear el borrador **no** los salta al publicar.
+- Si cambia el contenido, el SEO o una figura desde el último envío, la publicación directa se
+  bloquea hasta actualizar el borrador. Los borradores anteriores a esta verificación también
+  necesitan una nueva sincronización.
 - No borrar el borrador de WordPress desde la app para corregir contenido: edítalo y usa
   **Actualizar borrador WordPress** cuando proceda.
 
@@ -79,6 +97,21 @@ entrada de WordPress.
 | Caption de figura | Texto alternativo y pie de imagen |
 | ID, URL, hash y fecha del borrador | Trazabilidad para actualizar sin duplicar |
 | SEO de Rank Math | Título, descripción y keyword mediante su endpoint nativo; la lectura y puntuación se revisan en el editor |
+
+## Contrato visual y editorial de cada artículo
+
+1. La plantilla de Elementor «Entrada individual #216» aporta el H1, imagen destacada, colores,
+   tipografía, firma **Nexia GP** y CTA «CONTACTAR». No duplicarlos en el cuerpo exportado.
+2. El HTML exportado usa las clases `wp-block-*` del tema en párrafos, subtítulos, listas,
+   tablas y figuras. La figura `hero` pasa a imagen destacada; las demás conservan `alt` y pie.
+3. Revisar que el primer párrafo explique el tema, que la palabra clave encaje de forma natural,
+   que haya subtítulos útiles, fuentes comprobables, enlaces internos válidos y ningún enlace o
+   recurso pendiente. La aplicación conserva enlaces externos `https://` con dominio público,
+   pero hay que comprobar su destino y la afirmación que respaldan antes de publicar.
+4. Verificar en WordPress la tarjeta del blog, la entrada interior, escritorio y móvil, además de
+   la vista previa de Rank Math. Su puntuación orienta la revisión; no garantiza posicionamiento.
+5. Antes de publicar, confirmar título, slug, metatítulo, metadescripción, palabra clave,
+   imagen destacada, autor y estado del borrador. Después verificar URL pública y estado `publish`.
 
 La plantilla pública de Elementor ya añade título, imagen destacada y botón «CONTACTAR». El
 exportador evita añadirlos otra vez en el HTML y aplica las clases de bloque usadas en las entradas

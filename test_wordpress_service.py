@@ -223,7 +223,46 @@ class WordPressArticleTests(unittest.TestCase):
                 featured_media_id=None, existing={"postId": 7, "status": "draft"},
             )
 
-        self.assertEqual(calls, ["posts/7?context=edit&_fields=id,status,link,content,date_gmt"])
+        self.assertEqual(calls, ["posts/7?context=edit&_fields=id,status,link,content,date_gmt,author,featured_media,slug,title,excerpt"])
+
+    def test_publish_requires_brand_author_and_theme_html(self) -> None:
+        service = WordPressService(base_url="https://example.com", username="editor", application_password="test")
+        calls: list[tuple[str, str]] = []
+        post = {
+            "id": 7, "status": "draft", "author": 2, "featured_media": 9, "slug": "demo",
+            "title": {"raw": "Demo"}, "link": "https://example.com/demo/",
+            "content": {"raw": '<p class="wp-block-paragraph">Demo</p><h2>Detalle</h2><!-- nexiagp-blog-id:blog_demo -->'},
+        }
+
+        def request(path, *, method="GET", payload=None, **_kwargs):
+            calls.append((path, method))
+            if method == "POST":
+                post["status"] = payload["status"]
+            return dict(post)
+
+        service._request = request  # type: ignore[method-assign]
+        confirmed = service.publish_owned_draft(7, "blog_demo", author_id=2, expected_slug="demo", expected_title="Demo")
+        self.assertEqual(confirmed["status"], "publish")
+        self.assertEqual(len(calls), 3)
+
+        calls.clear()
+        confirmed_again = service.publish_owned_draft(7, "blog_demo", author_id=2, expected_slug="demo", expected_title="Demo")
+        self.assertEqual(confirmed_again["status"], "publish")
+        self.assertEqual(len(calls), 1)  # A retry reconciles without another write.
+
+        post["status"] = "draft"
+        post["author"] = 3
+        calls.clear()
+        with self.assertRaisesRegex(WordPressError, "autor"):
+            service.publish_owned_draft(7, "blog_demo", author_id=2, expected_slug="demo", expected_title="Demo")
+        self.assertEqual(len(calls), 1)
+
+        post["author"] = 2
+        post["content"] = {"raw": '<span class="lm-pending">Fuente</span><!-- nexiagp-blog-id:blog_demo -->'}
+        calls.clear()
+        with self.assertRaisesRegex(WordPressError, "HTML"):
+            service.publish_owned_draft(7, "blog_demo", author_id=2, expected_slug="demo", expected_title="Demo")
+        self.assertEqual(len(calls), 1)
 
     def test_rank_math_falls_back_to_manual_review_when_meta_is_not_exposed(self) -> None:
         service = WordPressService(base_url="https://example.com", username="editor", application_password="test")

@@ -2238,6 +2238,20 @@ button:disabled {
   font-size: 0.78rem;
 }
 
+.blog-publish-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
+.blog-publish-score input {
+  width: 72px;
+  min-height: 34px;
+  padding: 4px 8px;
+}
+
 .blog-handoff-confirmed {
   display: inline-flex;
   align-items: center;

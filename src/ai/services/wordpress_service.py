@@ -302,13 +302,42 @@ class WordPressService:
 
     def get_owned_post(self, post_id: int, blog_id: str) -> dict:
         """Read the current WordPress status and verify this integration owns the post."""
-        response = self._request(f"posts/{int(post_id)}?context=edit&_fields=id,status,link,content,date_gmt")
+        response = self._request(f"posts/{int(post_id)}?context=edit&_fields=id,status,link,content,date_gmt,author,featured_media,slug,title,excerpt")
         content = response.get("content") if isinstance(response, dict) else None
         raw_html = content.get("raw", "") if isinstance(content, dict) else ""
         marker = f"<!-- nexiagp-blog-id:{blog_id} -->"
         if not isinstance(response, dict) or response.get("id") != int(post_id) or marker not in str(raw_html):
             raise WordPressError("La entrada de WordPress no corresponde a este blog; no se modifica.")
         return response
+
+    def publish_owned_draft(self, post_id: int, blog_id: str, *, author_id: int, expected_slug: str, expected_title: str) -> dict:
+        """Publish only the matching draft after checking the site's Elementor content contract."""
+        post = self.get_owned_post(post_id, blog_id)
+        if post.get("status") not in {"draft", "publish"}:
+            raise WordPressError("La entrada de WordPress debe seguir en borrador para publicarla desde la app.")
+        if post.get("author") != author_id:
+            raise WordPressError("El autor del borrador no es Nexia GP.")
+        if not post.get("featured_media"):
+            raise WordPressError("El borrador no tiene imagen destacada.")
+        raw_html = str((post.get("content") or {}).get("raw") or "")
+        if re.search(r"<h1\b|<header\b|\blm-pending\b|href\s*=\s*['\"]#['\"]", raw_html, re.IGNORECASE):
+            raise WordPressError("El HTML del borrador contiene un encabezado duplicado o enlaces pendientes.")
+        if "wp-block-paragraph" not in raw_html or not re.search(r"<h2\b", raw_html, re.IGNORECASE):
+            raise WordPressError("El borrador no conserva la estructura de bloques de la plantilla.")
+        remote_title = html.unescape(str((post.get("title") or {}).get("raw") or "")).strip()
+        if str(post.get("slug") or "").strip() != expected_slug or remote_title != html.unescape(expected_title).strip():
+            raise WordPressError("El título o la URL del borrador difieren de la versión aprobada en la app.")
+        if post.get("status") == "publish":
+            if not post.get("link"):
+                raise WordPressError("WordPress no devolvió la URL de la entrada publicada.")
+            return post
+        result = self._request(f"posts/{int(post_id)}", method="POST", payload={"status": "publish"})
+        if not isinstance(result, dict) or result.get("id") != int(post_id) or result.get("status") != "publish":
+            raise WordPressError("WordPress no confirmó la publicación; comprueba el estado antes de reintentar.")
+        confirmed = self.get_owned_post(post_id, blog_id)
+        if confirmed.get("status") != "publish" or confirmed.get("author") != author_id or not confirmed.get("link"):
+            raise WordPressError("WordPress no confirmó el artículo publicado y su autor.")
+        return confirmed
 
     @staticmethod
     def _rank_math_meta_fields_from_options(response: dict | list) -> set[str]:

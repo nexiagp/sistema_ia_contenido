@@ -7,9 +7,11 @@ module keeps those decisions local, explicit and testable.
 from __future__ import annotations
 
 import html
+import ipaddress
 import json
 import re
 import unicodedata
+import urllib.parse
 from html.parser import HTMLParser
 
 from src.domain.blog import BLOG_LENGTH_TARGETS
@@ -233,7 +235,23 @@ def is_safe_internal_path(value: object) -> bool:
 
 def _is_safe_href(value: object) -> bool:
     href = html.unescape(str(value or "")).strip()
-    return href == "https://nexiagp.com/contacto/" or is_safe_internal_path(href)
+    if is_safe_internal_path(href):
+        return True
+    if len(href) > 2048 or re.search(r"[\s\\\x00-\x1f]", href):
+        return False
+    try:
+        parsed = urllib.parse.urlsplit(href)
+        host = parsed.hostname or ""
+        if parsed.scheme != "https" or parsed.username or parsed.password or parsed.port not in {None, 443}:
+            return False
+        if not host or "." not in host or host.endswith((".local", ".localhost")):
+            return False
+        try:
+            return ipaddress.ip_address(host).is_global
+        except ValueError:
+            return True
+    except ValueError:
+        return False
 
 
 def _is_safe_image_src(value: object) -> bool:
@@ -420,6 +438,8 @@ def blog_quality_gate(
         blockers.append(
             f"El HTML contiene {figure_count} figura(s) y la solicitud exige exactamente {expected_figures}."
         )
+    if re.search(r"\blm-pending\b", safe_html, re.IGNORECASE):
+        blockers.append("El artículo contiene enlaces o recursos pendientes de sustituir.")
     if not retrieval.get("sources"):
         blockers.append("El blog no tiene fuentes verificables catalogadas.")
     if not safe_seo.get("schema_jsonld"):
