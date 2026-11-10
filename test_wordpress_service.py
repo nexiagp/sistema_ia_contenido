@@ -191,7 +191,13 @@ class WordPressArticleTests(unittest.TestCase):
 
     def test_rank_math_reports_manual_review_if_wordpress_does_not_echo_values(self) -> None:
         service = WordPressService(base_url="https://example.com", username="editor", application_password="test")
-        service._request = lambda *_args, **_kwargs: {"id": 7, "link": "https://example.com/demo/", "status": "draft", "meta": {"rank_math_title": "Old title"}}  # type: ignore[method-assign]
+
+        def request(path, **_kwargs):
+            if "context=edit" in path:
+                return {"id": 7, "status": "draft", "content": {"raw": "<!-- nexiagp-blog-id:blog_demo -->"}}
+            return {"id": 7, "link": "https://example.com/demo/", "status": "draft", "meta": {"rank_math_title": "Old title"}}
+
+        service._request = request  # type: ignore[method-assign]
 
         result = service.upsert_draft(
             blog_id="blog_demo", title="Demo", slug="demo", content="<p>Demo</p>", excerpt="Demo",
@@ -200,6 +206,24 @@ class WordPressArticleTests(unittest.TestCase):
         )
 
         self.assertEqual(result["_verifiedRankMathFields"], [])
+
+    def test_stale_draft_record_cannot_unpublish_a_live_wordpress_post(self) -> None:
+        service = WordPressService(base_url="https://example.com", username="editor", application_password="test")
+        calls: list[str] = []
+
+        def request(path, **_kwargs):
+            calls.append(path)
+            return {"id": 7, "status": "publish", "link": "https://example.com/demo/", "content": {"raw": "<!-- nexiagp-blog-id:blog_demo -->"}}
+
+        service._request = request  # type: ignore[method-assign]
+
+        with self.assertRaisesRegex(WordPressError, "ya está publicado"):
+            service.upsert_draft(
+                blog_id="blog_demo", title="Demo", slug="demo", content="<p>Demo</p>", excerpt="Demo",
+                featured_media_id=None, existing={"postId": 7, "status": "draft"},
+            )
+
+        self.assertEqual(calls, ["posts/7?context=edit&_fields=id,status,link,content,date_gmt"])
 
     def test_rank_math_falls_back_to_manual_review_when_meta_is_not_exposed(self) -> None:
         service = WordPressService(base_url="https://example.com", username="editor", application_password="test")

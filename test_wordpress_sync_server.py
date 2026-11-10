@@ -18,6 +18,7 @@ class _FakeWordPressService:
         return {"configured": True, "baseUrl": "https://nexiagp.com"}
 
     def sync_blog_draft(self, blog: dict, **_kwargs) -> dict:
+        assert _kwargs["author_id"] == 2
         return {
             "post": {
                 "postId": 701,
@@ -33,6 +34,46 @@ class _FakeWordPressService:
 
 
 class WordPressServerSyncTests(unittest.TestCase):
+    def test_published_status_requires_matching_live_wordpress_post(self) -> None:
+        blog = {
+            "id": "blog_wordpress_pilot", "status": "ready", "article": {"article_html": "<article><h1>Piloto</h1></article>"},
+            "qualityGate": {"blockers": []}, "wordpress": {"postId": 701, "status": "draft", "postUrl": "https://nexiagp.com/?p=701"},
+        }
+        db = {"settings": {}, "themes": [], "postTypes": [], "files": [], "posts": [], "blogs": [blog], "schedulerLog": [], "prompt_overrides": {}, "prompt_versions": {}}
+
+        class PublishedWordPress(_FakeWordPressService):
+            def get_owned_post(self, post_id, blog_id):
+                assert (post_id, blog_id) == (701, "blog_wordpress_pilot")
+                return {"id": 701, "status": "publish", "link": "https://nexiagp.com/piloto-wordpress/", "date_gmt": "2026-11-10T18:22:00"}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "db.json"
+            db_path.write_text(json.dumps(db), encoding="utf-8")
+            with patch.object(server, "DB_PATH", db_path), patch.object(server, "WordPressService", PublishedWordPress), patch.object(server, "refresh_blog_quality_gate", return_value={"blockers": []}):
+                result = server.patch_blog("blog_wordpress_pilot", {"status": "published"})
+            persisted = json.loads(db_path.read_text(encoding="utf-8"))["blogs"][0]
+
+        self.assertEqual(result["blog"]["status"], "published")
+        self.assertEqual(persisted["wordpress"]["status"], "publish")
+        self.assertEqual(persisted["publishedAt"], "2026-11-10T18:22:00Z")
+
+    def test_draft_in_wordpress_cannot_be_marked_published_in_app(self) -> None:
+        blog = {"id": "blog_demo", "status": "ready", "article": {}, "qualityGate": {"blockers": []}, "wordpress": {"postId": 701, "status": "draft"}}
+        db = {"settings": {}, "themes": [], "postTypes": [], "files": [], "posts": [], "blogs": [blog], "schedulerLog": [], "prompt_overrides": {}, "prompt_versions": {}}
+
+        class DraftWordPress(_FakeWordPressService):
+            def get_owned_post(self, _post_id, _blog_id):
+                return {"id": 701, "status": "draft", "link": "https://nexiagp.com/?p=701"}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "db.json"
+            db_path.write_text(json.dumps(db), encoding="utf-8")
+            with patch.object(server, "DB_PATH", db_path), patch.object(server, "WordPressService", DraftWordPress), patch.object(server, "refresh_blog_quality_gate", return_value={"blockers": []}):
+                with self.assertRaises(server.ApiError) as blocked:
+                    server.patch_blog("blog_demo", {"status": "published"})
+
+        self.assertEqual(blocked.exception.code, "wordpress_not_published")
+
     def test_refresh_keeps_the_recorded_editorial_acknowledgement(self) -> None:
         review_time = "2026-09-01T10:00:00Z"
         blog = {

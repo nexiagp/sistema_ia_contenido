@@ -51,8 +51,9 @@ entrada de WordPress.
 5. En Rank Math, valida metatítulo, metadescripción, keyword principal y los avisos de análisis.
    La app indica «aplicado» si WordPress devuelve los tres valores guardados; «recibió» si el
    endpoint nativo aceptó el envío sin devolver esos valores.
-6. Marketing programa o publica desde WordPress. Registra la publicación en Nexia GP sólo después
-   de comprobarla en la web.
+6. Marketing programa o publica desde WordPress. Después pulsa **Comprobar publicación** en
+   Nexia GP: la aplicación consulta la entrada asociada y sólo la marca como publicada cuando
+   WordPress confirma que ya es pública.
 
 ## Reglas importantes
 
@@ -62,6 +63,8 @@ entrada de WordPress.
 - La sincronización recalcula la calidad pero conserva la revisión ya registrada si el contenido no
   cambió. El arreglo se publicó en el commit `f939324`.
 - Un borrador ya asociado se actualiza; una entrada publicada no se sobrescribe desde Nexia GP.
+- Antes de actualizar un borrador existente, la aplicación consulta su estado real en WordPress.
+  Si ya está publicado, bloquea la actualización para evitar que vuelva a `draft`.
 - No borrar el borrador de WordPress desde la app para corregir contenido: edítalo y usa
   **Actualizar borrador WordPress** cuando proceda.
 
@@ -70,6 +73,7 @@ entrada de WordPress.
 | Desde Nexia GP | Resultado en WordPress |
 | --- | --- |
 | Título, slug, HTML y extracto | Entrada en `draft` |
+| Autor | Usuario de WordPress `2`, cuyo nombre público es **Nexia GP** |
 | Figuras editoriales | Biblioteca de medios, con JPEG optimizado |
 | Figura `hero` o primera figura | Imagen destacada; Elementor la coloca en cabecera y al inicio del cuerpo |
 | Caption de figura | Texto alternativo y pie de imagen |
@@ -112,7 +116,6 @@ WORDPRESS_BASE_URL
 WORDPRESS_USERNAME
 WORDPRESS_APPLICATION_PASSWORD
 WORDPRESS_DEFAULT_CATEGORY_ID        # opcional
-WORDPRESS_AUTHOR_ID                  # opcional
 NEXIAGP_AUTH_REQUIRED=1
 SUPABASE_STATE_BACKEND=1
 ```

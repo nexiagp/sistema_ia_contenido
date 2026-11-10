@@ -1679,11 +1679,16 @@ function blogDetail(blog) {
   const wordpressConfigured = !!app.state?.wordpress?.configured;
   const approvedForWordPress = isBlogApprovedForWordPress(blog);
   const wordpressDraftExists = Boolean(wordpress.postId && wordpress.postUrl);
-  const wordpressSyncAvailable = wordpressConfigured && approvedForWordPress;
-  const approvalControl = approvedForWordPress
+  const wordpressPublished = blog.status === "published" && wordpress.status === "publish";
+  const wordpressSyncAvailable = wordpressConfigured && approvedForWordPress && !wordpressPublished;
+  const approvalControl = wordpressPublished
+    ? `<span class="blog-handoff-confirmed">${iconSvg("check")}Publicado</span>`
+    : approvedForWordPress
     ? `<span class="blog-handoff-confirmed">${iconSvg("check")}Contenido aprobado</span>`
     : `<button class="primary-button" type="button" data-action="blog-status" data-status="ready" data-id="${escapeAttr(blog.id)}">${iconSvg("check")}Aprobar contenido</button>`;
-  const wordpressControl = wordpressSyncAvailable
+  const wordpressControl = wordpressPublished
+    ? ""
+    : wordpressSyncAvailable
     ? `<button class="primary-button" type="button" data-action="blog-wordpress-sync" data-id="${escapeAttr(blog.id)}" title="${wordpressDraftExists ? "Actualiza el borrador existente; no publica" : "Crea un borrador; no publica"}">${iconSvg("upload")}${wordpressDraftExists ? "Actualizar borrador WordPress" : "Crear borrador en WordPress"}</button>`
     : `<button class="secondary-button" type="button" disabled title="${wordpressConfigured ? "Aprueba primero el contenido para WordPress" : "Configura WordPress en el servidor para activar esta acción"}">${iconSvg("upload")}Crear borrador en WordPress</button>`;
   const calendarMessage = blog.scheduledFor
@@ -1691,13 +1696,17 @@ function blogDetail(blog) {
     : "Reserva la fecha desde Calendario cuando el equipo haya validado el plan.";
   const wordpressError = wordpress.lastError
     ? `<small class="blog-handoff-note is-error">Último intento WordPress: ${escapeHtml(wordpress.lastError)}</small>`
-    : wordpressDraftExists
+    : wordpressPublished
+      ? `<small class="blog-handoff-note">Publicado en WordPress · ${escapeHtml(formatTimestamp(blog.publishedAt))}</small>`
+      : wordpressDraftExists
       ? `<small class="blog-handoff-note">Borrador de WordPress · ${escapeHtml(wordpress.status || "draft")} · ${escapeHtml(formatTimestamp(wordpress.lastSyncAt))}</small>`
       : `<small class="blog-handoff-note">${wordpressConfigured ? "Siempre crea un borrador; nunca publica el artículo." : "WordPress aún no está configurado en el servidor."}</small>`;
   const rankMath = wordpress.rankMath || {};
   const rankMathApplied = Array.isArray(rankMath.applied) ? rankMath.applied : [];
   const rankMathSubmitted = Array.isArray(rankMath.submitted) ? rankMath.submitted : [];
-  const rankMathMessage = wordpressDraftExists
+  const rankMathMessage = wordpressPublished
+    ? "Metatítulo, descripción y palabra clave enviados a Rank Math; consulta su análisis en WordPress."
+    : wordpressDraftExists
     ? rankMathApplied.length === 3 && !rankMath.manualReview
       ? `Rank Math aplicado: ${rankMathApplied.map((field) => ({ rank_math_title: "metatítulo", rank_math_description: "metadescripción", rank_math_focus_keyword: "keyword" }[field] || field)).join(", ")}.`
       : rankMathSubmitted.length === 3
@@ -1715,7 +1724,7 @@ function blogDetail(blog) {
             <span class="pill">${escapeHtml(brief.search_intent || "")}</span>
             <span class="pill">${escapeHtml(brief.funnel_stage || "")}</span>
             <span class="pill">${article.word_count || 0} palabras</span>
-            ${wordpress.postUrl ? badge("Borrador WordPress", "ready") : ""}
+            ${wordpress.postUrl ? badge(wordpressPublished ? "Publicado en WordPress" : "Borrador WordPress", wordpressPublished ? "published" : "ready") : ""}
             ${qualityGateBadge(blog.qualityGate)}
           </div>
           <h2>${escapeHtml(blog.title || brief.h1 || "")}</h2>
@@ -1730,21 +1739,21 @@ function blogDetail(blog) {
 
       <section class="blog-handoff" aria-label="Flujo de publicación del blog">
         <header class="blog-handoff-head">
-          <div><p class="eyebrow">Flujo de publicación</p><h3>Del visto bueno al borrador de la web</h3></div>
-          <p>La agenda organiza el plan editorial. Nunca publica por sí sola.</p>
+          <div><p class="eyebrow">Flujo de publicación</p><h3>${wordpressPublished ? "Artículo publicado en la web" : "Del visto bueno al borrador de la web"}</h3></div>
+          <p>${wordpressPublished ? "La entrada está visible en Nexia GP." : "La agenda organiza el plan editorial. Nunca publica por sí sola."}</p>
         </header>
         <ol class="blog-handoff-steps">
-          <li class="blog-handoff-step ${approvedForWordPress ? "is-complete" : "is-current"}">
+          <li class="blog-handoff-step ${approvedForWordPress || wordpressPublished ? "is-complete" : "is-current"}">
             <span class="blog-handoff-index" aria-hidden="true">1</span>
             <div class="blog-handoff-copy"><span>Revisión editorial</span><h4>Aprobar contenido</h4><p>Registra la revisión y deja el artículo listo para enviarlo.</p></div>
             <div class="blog-handoff-action">${approvalControl}</div>
           </li>
           <li class="blog-handoff-step ${wordpressDraftExists ? "is-complete" : approvedForWordPress ? "is-current" : "is-waiting"}">
             <span class="blog-handoff-index" aria-hidden="true">2</span>
-            <div class="blog-handoff-copy"><span>WordPress</span><h4>${wordpressDraftExists ? "Borrador creado" : "Crear borrador"}</h4><p>Inserta el artículo y sus imágenes en la plantilla actual de la web. ${escapeHtml(rankMathMessage)}</p></div>
-            <div class="blog-handoff-action">${wordpressControl}${wordpressDraftExists ? `<a class="secondary-button" href="${escapeAttr(wordpress.editUrl || wordpress.postUrl)}" target="_blank" rel="noopener">${iconSvg("expand")}Abrir borrador</a>` : ""}${wordpressError}</div>
+            <div class="blog-handoff-copy"><span>WordPress</span><h4>${wordpressPublished ? "Entrada publicada" : wordpressDraftExists ? "Borrador creado" : "Crear borrador"}</h4><p>${wordpressPublished ? "El artículo y sus imágenes están visibles en la web." : "Inserta el artículo y sus imágenes en la plantilla actual de la web."} ${escapeHtml(rankMathMessage)}</p></div>
+            <div class="blog-handoff-action">${wordpressControl}${wordpressDraftExists ? `<a class="secondary-button" href="${escapeAttr(wordpressPublished ? wordpress.postUrl : wordpress.editUrl || wordpress.postUrl)}" target="_blank" rel="noopener">${iconSvg("expand")}${wordpressPublished ? "Ver entrada" : "Abrir borrador"}</a>` : ""}${wordpressDraftExists && !wordpressPublished ? `<button class="secondary-button" type="button" data-action="blog-status" data-status="published" data-id="${escapeAttr(blog.id)}">Comprobar publicación</button>` : ""}${wordpressError}</div>
           </li>
-          <li class="blog-handoff-step ${blog.scheduledFor ? "is-complete" : "is-waiting"}">
+          <li class="blog-handoff-step ${wordpressPublished || blog.scheduledFor ? "is-complete" : "is-waiting"}">
             <span class="blog-handoff-index" aria-hidden="true">3</span>
             <div class="blog-handoff-copy"><span>Agenda editorial</span><h4>Reservar fecha</h4><p>Coordina la publicación cada 15 días desde el calendario del equipo.</p></div>
             <div class="blog-handoff-action"><small class="blog-handoff-note">${escapeHtml(calendarMessage)}</small><small class="blog-handoff-note">La programación final se revisa manualmente en WordPress.</small></div>

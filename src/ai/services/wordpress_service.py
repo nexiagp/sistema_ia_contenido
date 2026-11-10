@@ -300,6 +300,16 @@ class WordPressService:
                 return item
         return None
 
+    def get_owned_post(self, post_id: int, blog_id: str) -> dict:
+        """Read the current WordPress status and verify this integration owns the post."""
+        response = self._request(f"posts/{int(post_id)}?context=edit&_fields=id,status,link,content,date_gmt")
+        content = response.get("content") if isinstance(response, dict) else None
+        raw_html = content.get("raw", "") if isinstance(content, dict) else ""
+        marker = f"<!-- nexiagp-blog-id:{blog_id} -->"
+        if not isinstance(response, dict) or response.get("id") != int(post_id) or marker not in str(raw_html):
+            raise WordPressError("La entrada de WordPress no corresponde a este blog; no se modifica.")
+        return response
+
     @staticmethod
     def _rank_math_meta_fields_from_options(response: dict | list) -> set[str]:
         """Find Rank Math fields registered in the posts REST schema.
@@ -409,7 +419,9 @@ class WordPressService:
             raise WordPressError("El blog necesita título, slug y contenido antes de enviarlo a WordPress.")
         marker = f"<!-- nexiagp-blog-id:{blog_id} -->"
         target = dict(existing or {})
-        if not target.get("postId"):
+        if target.get("postId"):
+            target = {**target, **self.get_owned_post(int(target["postId"]), blog_id)}
+        else:
             target = self._find_owned_post_by_slug(slug, marker) or {}
         if str(target.get("status") or "") == "publish":
             raise WordPressError("El artículo ya está publicado en WordPress. No se sobrescribe desde el borrador.")

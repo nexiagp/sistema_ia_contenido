@@ -1546,7 +1546,19 @@ def patch_blog(blog_id: str, body: dict) -> dict:
             acknowledge_quality_gate(blog)
         requested_status = body.get("status") if body.get("status") in BLOG_STATUSES else None
         if requested_status == "published":
-            raise ApiError("La publicación de blogs no está conectada todavía; usa el estado listo.", 409)
+            wordpress = blog.get("wordpress") if isinstance(blog.get("wordpress"), dict) else {}
+            post_id = wordpress.get("postId")
+            if not post_id:
+                raise ApiError("Este blog no tiene una entrada de WordPress asociada.", 409, "wordpress_post_missing")
+            try:
+                remote_post = WordPressService().get_owned_post(int(post_id), blog_id)
+            except (WordPressError, ValueError, TypeError) as exc:
+                raise ApiError("No se pudo confirmar la publicación en WordPress.", 502, "wordpress_status_unverified") from exc
+            if remote_post.get("status") != "publish":
+                raise ApiError("La entrada aún no está publicada en WordPress.", 409, "wordpress_not_published")
+            published_at = str(remote_post.get("date_gmt") or "").strip()
+            blog["publishedAt"] = f"{published_at}Z" if published_at and not published_at.endswith("Z") else published_at or now_iso()
+            blog["wordpress"] = {**wordpress, "status": "publish", "postUrl": str(remote_post.get("link") or wordpress.get("postUrl") or ""), "lastCheckedAt": now_iso()}
         if "scheduledFor" in body:
             if has_unacknowledged_quality_gate(blog):
                 raise ApiError(
@@ -1662,7 +1674,7 @@ def sync_blog_to_wordpress_draft(blog_id: str) -> dict:
             blog,
             image_loader=wordpress_image_bytes,
             category_id=_wordpress_optional_id("WORDPRESS_DEFAULT_CATEGORY_ID"),
-            author_id=_wordpress_optional_id("WORDPRESS_AUTHOR_ID"),
+            author_id=2,  # WordPress user 2 is Nexia GP, the public blog author.
         )
     except WordPressError as exc:
         message = exc.args[0] if exc.args else "No se pudo sincronizar el borrador con WordPress."
