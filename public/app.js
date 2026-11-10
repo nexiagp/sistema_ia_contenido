@@ -1696,11 +1696,14 @@ function blogDetail(blog) {
       : `<small class="blog-handoff-note">${wordpressConfigured ? "Siempre crea un borrador; nunca publica el artículo." : "WordPress aún no está configurado en el servidor."}</small>`;
   const rankMath = wordpress.rankMath || {};
   const rankMathApplied = Array.isArray(rankMath.applied) ? rankMath.applied : [];
+  const rankMathSubmitted = Array.isArray(rankMath.submitted) ? rankMath.submitted : [];
   const rankMathMessage = wordpressDraftExists
     ? rankMathApplied.length === 3 && !rankMath.manualReview
       ? `Rank Math aplicado: ${rankMathApplied.map((field) => ({ rank_math_title: "metatítulo", rank_math_description: "metadescripción", rank_math_focus_keyword: "keyword" }[field] || field)).join(", ")}.`
-      : "Rank Math: comprueba metatítulo, metadescripción y keyword en WordPress antes de publicar; la API no ha confirmado los tres campos."
-    : "Rank Math se completará automáticamente si sus campos están disponibles por API; si no, quedará señalado para revisión.";
+      : rankMathSubmitted.length === 3
+        ? "Rank Math recibió metatítulo, metadescripción y keyword. Comprueba su análisis en el editor antes de publicar."
+        : `Rank Math: comprueba metatítulo, metadescripción y keyword en WordPress antes de publicar.${rankMath.error ? ` ${rankMath.error}` : ""}`
+    : "El envío del borrador también enviará metatítulo, metadescripción y keyword a Rank Math.";
 
   return `
     <div class="blog-detail">

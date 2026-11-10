@@ -9,6 +9,7 @@ from PIL import Image
 from src.ai.services.wordpress_service import (
     MAX_WORDPRESS_IMAGE_BYTES,
     PREFERRED_IMAGE_BYTES,
+    WordPressError,
     WordPressService,
     clean_wordpress_article,
     prepare_wordpress_image,
@@ -209,6 +210,76 @@ class WordPressArticleTests(unittest.TestCase):
             service.rank_math_meta_values(set(), meta_title="Título", meta_description="Descripción", focus_keyword="keyword"),
             {},
         )
+
+    def test_sync_sends_effective_seo_fields_to_native_rank_math_endpoint(self) -> None:
+        service = WordPressService(base_url="https://example.com", username="editor", application_password="test")
+        captured: dict = {}
+        service.rank_math_meta_fields = lambda: set()  # type: ignore[method-assign]
+
+        def upsert(**kwargs):
+            captured["upsert"] = kwargs
+            return {"postId": 789, "postUrl": "https://example.com/demo/", "status": "draft", "_verifiedRankMathFields": []}
+
+        def update(post_id, values):
+            captured["native"] = (post_id, values)
+            return True
+
+        service.upsert_draft = upsert  # type: ignore[method-assign]
+        service.update_rank_math_native = update  # type: ignore[method-assign]
+        blog = {
+            "id": "blog_demo", "title": "Demo", "slug": "demo", "metaTitle": "Título SEO",
+            "metaDescription": "Descripción SEO", "primaryKeyword": "palabra actual",
+            "brief": {"primary_keyword": "palabra antigua"},
+            "article": {"article_html": "<article><p>Cuerpo.</p></article>"}, "figures": [],
+        }
+
+        result = service.sync_blog_draft(blog, image_loader=lambda _image: b"")
+
+        self.assertEqual(captured["upsert"]["rank_math_meta"], {})
+        self.assertEqual(captured["native"], (789, {
+            "rank_math_title": "Título SEO",
+            "rank_math_description": "Descripción SEO",
+            "rank_math_focus_keyword": "palabra actual",
+        }))
+        self.assertEqual(len(result["post"]["rankMath"]["submitted"]), 3)
+        self.assertTrue(result["post"]["rankMath"]["manualReview"])
+
+    def test_native_rank_math_request_uses_its_editor_endpoint(self) -> None:
+        service = WordPressService(base_url="https://example.com", username="editor", application_password="test")
+        captured: dict = {}
+
+        def request(path, **kwargs):
+            captured.update({"path": path, **kwargs})
+            return {"slug": True, "schemas": []}
+
+        service._request = request  # type: ignore[method-assign]
+
+        self.assertTrue(service.update_rank_math_native(789, {"rank_math_focus_keyword": "palabra"}))
+        self.assertEqual(captured, {
+            "path": "rankmath/v1/updateMeta", "method": "POST",
+            "payload": {"objectType": "post", "objectID": 789, "meta": {"rank_math_focus_keyword": "palabra"}},
+        })
+
+    def test_native_rank_math_failure_keeps_wordpress_draft_and_reports_error(self) -> None:
+        service = WordPressService(base_url="https://example.com", username="editor", application_password="test")
+        service.rank_math_meta_fields = lambda: set()  # type: ignore[method-assign]
+        service.upsert_draft = lambda **_kwargs: {"postId": 789, "postUrl": "https://example.com/demo/", "status": "draft"}  # type: ignore[method-assign]
+
+        def fail(_post_id, _values):
+            raise WordPressError("Rank Math no está disponible")
+
+        service.update_rank_math_native = fail  # type: ignore[method-assign]
+        blog = {
+            "id": "blog_demo", "title": "Demo", "slug": "demo", "metaTitle": "Título SEO",
+            "metaDescription": "Descripción SEO", "primaryKeyword": "palabra",
+            "article": {"article_html": "<article><p>Cuerpo.</p></article>"}, "figures": [],
+        }
+
+        result = service.sync_blog_draft(blog, image_loader=lambda _image: b"")
+
+        self.assertEqual(result["post"]["postId"], 789)
+        self.assertEqual(result["post"]["rankMath"]["submitted"], [])
+        self.assertEqual(result["post"]["rankMath"]["error"], "Rank Math no está disponible")
 
 
 if __name__ == "__main__":

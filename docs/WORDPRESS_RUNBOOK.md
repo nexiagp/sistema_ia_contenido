@@ -3,10 +3,11 @@
 **Actualizado:** 10 de noviembre de 2026
 **Uso:** equipo editorial y mantenimiento técnico de la conexión con `nexiagp.com`.
 
-**Revisión del 26/10/2026:** las tres vistas previas muestran la portada repetida dentro del
-artículo. El exportador corregido la omite y retira recursos sin enlace, pero ese cambio aún no
-está desplegado ni aplicado a los borradores existentes. La portada del artículo de logística
-debe sustituirse por una imagen sin mapa ni datos simulados. Ver [revisión visual y enlaces](REVISION_BLOGS_Y_REDES_2026-10-26.md).
+**Revisión del 10/11/2026:** el exportador y los tres borradores existentes ya usan las clases
+de bloque del tema y dejan el botón de contacto a la plantilla de Elementor. Se omite la imagen
+`hero` del HTML: la plantilla ya coloca la destacada en cabecera y al inicio del cuerpo, como
+en las entradas publicadas. La portada del artículo de logística sigue pendiente de sustituirse por una imagen
+sin mapa ni datos simulados. Ver [revisión visual y enlaces](REVISION_BLOGS_Y_REDES_2026-10-26.md).
 
 ## Estado actual
 
@@ -14,10 +15,12 @@ debe sustituirse por una imagen sin mapa ni datos simulados. Ver [revisión visu
 - WordPress está conectado mediante un usuario técnico y una contraseña de aplicación almacenada
   únicamente como secreto de Production en Vercel.
 - La integración crea o actualiza **borradores**; no publica ni programa entradas de WordPress.
-- El piloto inicial se verificó con tres artículos aprobados y los tres permanecen en `draft`.
-- Rank Math está instalado. Para sincronizar sus tres campos SEO por REST, el complemento
-  `wordpress/nexiagp-rankmath-rest` debe estar activo en WordPress. Si no lo está, la ficha
-  muestra explícitamente que queda revisión manual.
+- Los tres artículos piloto tienen borrador en WordPress (`draft`). En la aplicación están en
+  revisión y requieren una nueva aprobación editorial antes de volver a sincronizar.
+- Rank Math está instalado. La integración envía metatítulo, metadescripción y palabra clave
+  mediante el endpoint nativo autenticado de Rank Math. La ficha distingue entre valores
+  confirmados en la respuesta de WordPress y envío aceptado por Rank Math; la puntuación se
+  comprueba en el editor.
 
 ## Flujo editorial acordado
 
@@ -46,7 +49,8 @@ entrada de WordPress.
    entrada en estado `draft`; los posteriores actualizan ese mismo borrador.
 4. Pulsa **Abrir borrador** y revisa HTML, enlaces, CTA, imagen destacada y las imágenes interiores.
 5. En Rank Math, valida metatítulo, metadescripción, keyword principal y los avisos de análisis.
-   La app sólo indica «aplicado» cuando WordPress devuelve los tres valores guardados.
+   La app indica «aplicado» si WordPress devuelve los tres valores guardados; «recibió» si el
+   endpoint nativo aceptó el envío sin devolver esos valores.
 6. Marketing programa o publica desde WordPress. Registra la publicación en Nexia GP sólo después
    de comprobarla en la web.
 
@@ -67,29 +71,26 @@ entrada de WordPress.
 | --- | --- |
 | Título, slug, HTML y extracto | Entrada en `draft` |
 | Figuras editoriales | Biblioteca de medios, con JPEG optimizado |
-| Figura `hero` o primera figura | Imagen destacada, sin repetirse dentro del cuerpo tras aplicar el exportador corregido |
+| Figura `hero` o primera figura | Imagen destacada; Elementor la coloca en cabecera y al inicio del cuerpo |
 | Caption de figura | Texto alternativo y pie de imagen |
 | ID, URL, hash y fecha del borrador | Trazabilidad para actualizar sin duplicar |
-| SEO de Rank Math | Título, descripción y keyword si el puente REST está activo y confirma la lectura; si no, revisión manual |
+| SEO de Rank Math | Título, descripción y keyword mediante su endpoint nativo; la lectura y puntuación se revisan en el editor |
 
 La plantilla pública de Elementor ya añade título, imagen destacada y botón «CONTACTAR». El
-exportador elimina esos duplicados del HTML y aplica las clases de bloque usadas en las entradas
+exportador evita añadirlos otra vez en el HTML y aplica las clases de bloque usadas en las entradas
 publicadas. Los colores, tipografías y botón proceden del tema actual. La vista previa de la app
 mantiene su propio cierre para la revisión editorial.
 
-## Puente REST de Rank Math
+## Sincronización nativa de Rank Math
 
-El código fuente está en `wordpress/nexiagp-rankmath-rest/nexiagp-rankmath-rest.php`.
-Se instala como complemento ZIP desde **Plugins → Añadir plugin → Subir plugin** y se activa.
-Registra únicamente `rank_math_title`, `rank_math_description` y `rank_math_focus_keyword`
-para entradas, con escritura limitada a usuarios que pueden editar la entrada. No añade CSS ni
-modifica contenido publicado. Para comprobarlo, consultar con autenticación el esquema REST de
-`/wp-json/wp/v2/posts` y confirmar que los tres campos aparecen en `meta.properties`.
-
-Después de activar el complemento, sincronizar un borrador revisado y comprobar en la respuesta
-de WordPress que los tres valores coinciden. La puntuación de Rank Math se revisa en el editor:
-es una guía de análisis, no una garantía de posicionamiento. Si el complemento no puede instalarse,
-se pueden rellenar los campos manualmente en cada borrador; la app dejará esa revisión pendiente.
+La aplicación intenta primero los campos `meta` del REST de entradas cuando están expuestos y
+WordPress devuelve los mismos valores. En esta instalación no se exponen; por ello usa
+`/wp-json/rankmath/v1/updateMeta` con la contraseña de aplicación del usuario técnico. Se
+envían `rank_math_title`, `rank_math_description` y `rank_math_focus_keyword` para la entrada
+que acaba de guardarse como borrador. La respuesta del endpoint confirma que recibió la
+operación, pero no devuelve esos valores para cotejarlos. Revisa los campos y la puntuación en
+el editor antes de publicar. La puntuación es una guía de análisis, no una garantía de
+posicionamiento. No hay que instalar un complemento adicional.
 
 ## Diagnóstico seguro
 
@@ -99,7 +100,7 @@ se pueden rellenar los campos manualmente en cada borrador; la app dejará esa r
 | Artículo aceptado vuelve a pedir revisión sin haberse editado | Posible despliegue antiguo o regresión. | Actualiza la aplicación; comprobar en Vercel `f939324` o posterior y abrir incidencia si persiste. |
 | Error al crear borrador | Puede afectar a una figura, a la conexión o a la respuesta de WordPress. | Lee el mensaje en la ficha; revisa logs de Vercel y no pulses repetidamente. |
 | La imagen no llega | El activo editorial no está disponible en Storage o WordPress rechazó el medio. | Verificar `editorial-images` en Supabase y el medio existente en WordPress. |
-| SEO no aparece completado | El puente REST no está activo, el esquema no expone los campos o WordPress no confirmó los valores. | Revisar el complemento y los permisos; completar los campos manualmente si sigue sin funcionar. |
+| SEO no aparece completado | Rank Math rechazó el envío o el editor todavía no confirmó los valores. | Revisar permisos y los campos en WordPress; completar los campos manualmente si sigue sin funcionar. |
 
 ## Configuración técnica
 

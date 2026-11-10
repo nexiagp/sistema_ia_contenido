@@ -233,9 +233,9 @@ class WordPressService:
             request_headers["content-type"] = "application/json; charset=utf-8"
         if headers:
             request_headers.update(headers)
-        request = urllib.request.Request(
-            f"{self.api_root}/{path.lstrip('/')}", data=body, headers=request_headers, method=method
-        )
+        route = path.lstrip("/")
+        url = f"{self.base_url}/wp-json/{route}" if route.startswith("rankmath/v1/") else f"{self.api_root}/{route}"
+        request = urllib.request.Request(url, data=body, headers=request_headers, method=method)
         try:
             opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
             with opener.open(request, timeout=75) as response:
@@ -380,6 +380,17 @@ class WordPressService:
             if field in available_fields and value
         }
 
+    def update_rank_math_native(self, post_id: int, values: dict[str, str]) -> bool:
+        """Use Rank Math's own authenticated editor endpoint when post meta is not REST-writable."""
+        if not values:
+            return False
+        response = self._request(
+            "rankmath/v1/updateMeta",
+            method="POST",
+            payload={"objectType": "post", "objectID": int(post_id), "meta": values},
+        )
+        return isinstance(response, dict) and response.get("slug") is True
+
     def upsert_draft(
         self,
         *,
@@ -484,12 +495,13 @@ class WordPressService:
         content = clean_wordpress_article(article_html, media_by_figure, featured_figure_id=featured_figure_id)
         excerpt = str(blog.get("metaDescription") or seo.get("meta_description") or "").strip()
         rank_math_fields = self.rank_math_meta_fields()
-        rank_math_meta = self.rank_math_meta_values(
-            rank_math_fields,
+        desired_rank_math_meta = self.rank_math_meta_values(
+            set(_RANK_MATH_META_FIELDS),
             meta_title=str(blog.get("metaTitle") or seo.get("meta_title") or title),
             meta_description=excerpt,
-            focus_keyword=str((blog.get("brief") or {}).get("primary_keyword") or seo.get("primary_keyword") or ""),
+            focus_keyword=str(blog.get("primaryKeyword") or (blog.get("brief") or {}).get("primary_keyword") or seo.get("primary_keyword") or ""),
         )
+        rank_math_meta = {key: value for key, value in desired_rank_math_meta.items() if key in rank_math_fields}
         featured = media_by_figure.get(featured_figure_id) if featured_figure_id else None
         post = self.upsert_draft(
             blog_id=str(blog.get("id") or ""),
@@ -504,10 +516,22 @@ class WordPressService:
             rank_math_meta=rank_math_meta,
         )
         verified_fields = list(post.pop("_verifiedRankMathFields", []))
+        native_submitted: list[str] = []
+        native_error: str | None = None
+        if len(verified_fields) != len(_RANK_MATH_META_FIELDS) and desired_rank_math_meta:
+            try:
+                if self.update_rank_math_native(int(post["postId"]), desired_rank_math_meta):
+                    native_submitted = sorted(desired_rank_math_meta)
+                else:
+                    native_error = "Rank Math no confirmó la actualización de los campos SEO."
+            except WordPressError as exc:
+                native_error = str(exc)
         post["rankMath"] = {
-            "detected": bool(rank_math_fields),
+            "detected": bool(rank_math_fields or native_submitted),
             "applied": verified_fields,
+            "submitted": native_submitted,
             "manualReview": len(verified_fields) != len(_RANK_MATH_META_FIELDS),
+            "error": native_error,
         }
         return {
             "post": post,
