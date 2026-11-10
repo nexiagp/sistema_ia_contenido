@@ -435,7 +435,8 @@ def blog_quality_gate(
             return re.sub(r"\s+", " ", re.sub(r"[^\w]+", " ", value)).strip()
 
         focus = normalise_phrase(keyword)
-        intro = re.search(r"<p\b[^>]*>(.*?)</p>", safe_html, re.IGNORECASE | re.DOTALL)
+        article_body = re.sub(r"<header\b[^>]*>.*?</header\s*>", "", safe_html, flags=re.IGNORECASE | re.DOTALL)
+        intro = re.search(r"<p\b[^>]*>(.*?)</p>", article_body, re.IGNORECASE | re.DOTALL)
         if focus not in normalise_phrase(safe_seo.get("meta_title")):
             warnings.append("La palabra clave principal no aparece en el título SEO.")
         if focus not in normalise_phrase(safe_seo.get("meta_description")):

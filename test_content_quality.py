@@ -156,6 +156,28 @@ class ContentQualityTests(unittest.TestCase):
         self.assertEqual(clean_seo["canonical_path"], "/guia-b2b/")
         self.assertTrue(gate["can_mark_ready"])
 
+    def test_blog_intro_keyword_check_ignores_author_in_header(self) -> None:
+        article = {
+            "article_html": '<article><header><h1>Guía B2B</h1><p>Por Nexia GP</p></header>'
+            '<p>Cuando hablamos de compraventa y suministro industrial, importa el canal.</p></article>'
+        }
+        seo = {
+            "slug": "compraventa-y-suministro-industrial",
+            "meta_title": "Compraventa y suministro industrial | Nexia GP",
+            "meta_description": "Una guía de compraventa y suministro industrial.",
+            "schema_jsonld": json.dumps({"@context": "https://schema.org", "@type": "Article"}),
+        }
+
+        _article, _seo, gate = blog_quality_gate(
+            {"length": "corto", "images_per_article": 0},
+            {"primary_keyword": "compraventa y suministro industrial"},
+            {"sources": [{"source_id": "file_1"}], "warnings": []},
+            article,
+            seo,
+        )
+
+        self.assertNotIn("primer párrafo", " ".join(gate["warnings"]))
+
 
 if __name__ == "__main__":
     unittest.main()
