@@ -825,6 +825,25 @@ function bindEvents() {
         return;
       }
 
+      if (form.classList.contains("seo-edit-form")) {
+        const data = new FormData(form);
+        const payload = {
+          metaTitle: String(data.get("metaTitle") || "").trim(),
+          metaDescription: String(data.get("metaDescription") || "").trim(),
+          primaryKeyword: String(data.get("primaryKeyword") || "").trim(),
+        };
+        if (!payload.metaTitle || !payload.metaDescription || !payload.primaryKeyword) {
+          throw new Error("Completa el título SEO, la descripción y la palabra clave principal.");
+        }
+        await withLoading(form.querySelector("button[type='submit']"), () =>
+          api(`/api/blogs/${encodeURIComponent(form.dataset.id)}`, {
+            method: "PATCH", body: JSON.stringify(payload),
+          }),
+        );
+        await loadState("SEO guardado; revisa de nuevo el artículo antes de sincronizarlo");
+        return;
+      }
+
       if (form.id === "uploadForm") {
         const data = new FormData(form);
         await withLoading(form.querySelector("button[type='submit']"), () =>
@@ -1678,9 +1697,9 @@ function blogDetail(blog) {
   const rankMath = wordpress.rankMath || {};
   const rankMathApplied = Array.isArray(rankMath.applied) ? rankMath.applied : [];
   const rankMathMessage = wordpressDraftExists
-    ? rankMathApplied.length
+    ? rankMathApplied.length === 3 && !rankMath.manualReview
       ? `Rank Math aplicado: ${rankMathApplied.map((field) => ({ rank_math_title: "metatítulo", rank_math_description: "metadescripción", rank_math_focus_keyword: "keyword" }[field] || field)).join(", ")}.`
-      : "Rank Math: revisa metatítulo, metadescripción y keyword antes de publicar."
+      : "Rank Math: comprueba metatítulo, metadescripción y keyword en WordPress antes de publicar; la API no ha confirmado los tres campos."
     : "Rank Math se completará automáticamente si sus campos están disponibles por API; si no, quedará señalado para revisión.";
 
   return `
@@ -1807,8 +1826,8 @@ async function buildStandaloneDocument(html, blog) {
   }
   const css = app._blogPreviewCss;
   const seo = blog?.seo || {};
-  const title = seo.meta_title || blog?.title || "Blog Nexia GP";
-  const description = seo.meta_description || "";
+  const title = blog?.metaTitle || seo.meta_title || blog?.title || "Blog Nexia GP";
+  const description = blog?.metaDescription || seo.meta_description || "";
   const og = seo.open_graph || {};
   const schema = safeJsonLdForExport(seo.schema_jsonld);
   const metaTags = [
@@ -1879,7 +1898,10 @@ function blogSeoPanel(blog, seo) {
   const otherBlockers = (gate.blockers || []).filter((message) => !seoFlags.some((flag) => String(message).includes(flag)));
   const flags = [...seoFlags.map(friendlySeoFlag), ...otherBlockers];
   const warnings = gate.warnings || [];
-  const path = seo.canonical_path || `/${seo.slug || ""}`;
+  const metaTitle = blog.metaTitle || seo.meta_title;
+  const metaDescription = blog.metaDescription || seo.meta_description || "";
+  const slug = blog.slug || seo.slug || "";
+  const path = `/${slug}/`;
   const schema = parseSchemaJson(seo.schema_jsonld);
   const schemaType = schema["@type"] || "Article";
   const schemaAuthor = typeof schema.author === "object" ? schema.author?.name : schema.author;
@@ -1895,33 +1917,42 @@ function blogSeoPanel(blog, seo) {
           <h4>${flags.length ? "Hay un punto que revisar" : "SEO listo para revisión final"}</h4>
           <p>${flags.length ? "El artículo no se pierde ni se bloquea: esta es la comprobación concreta antes de marcarlo como listo." : "La ficha de buscador, la URL y los datos estructurados no muestran bloqueos."}</p>
           ${flags.length ? `<ul>${flags.map((flag) => `<li>${escapeHtml(flag)}</li>`).join("")}</ul>` : ""}
-          ${warnings.length ? `<p class="seo-readiness-note">Nota editorial: ${escapeHtml(warnings[0])}</p>` : ""}
+          ${warnings.length ? `<ul class="seo-readiness-note">${warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul>` : ""}
         </div>
       </section>
 
       <section class="search-result-card">
         <header><p class="eyebrow">Así puede leerse en buscador</p><span>Vista de resultado</span></header>
         <div class="search-result-url">nexiagp.com${escapeHtml(path)}</div>
-        <strong>${escapeHtml(seo.meta_title)}</strong>
-        <p>${escapeHtml(seo.meta_description || "Añade una descripción de resultado.")}</p>
+        <strong>${escapeHtml(metaTitle)}</strong>
+        <p>${escapeHtml(metaDescription || "Añade una descripción de resultado.")}</p>
       </section>
 
       <div class="seo-fields-board">
         <article class="seo-field seo-field-wide">
           <span>Título que verá quien busca</span>
-          <strong>${escapeHtml(seo.meta_title)}</strong>
-          <small>${seo.meta_title.length} caracteres · marca al final</small>
+          <strong>${escapeHtml(metaTitle)}</strong>
+          <small>${metaTitle.length} caracteres · marca al final</small>
         </article>
         <article class="seo-field seo-field-wide">
           <span>Descripción que acompaña al resultado</span>
-          <p>${escapeHtml(seo.meta_description || "Pendiente")}</p>
-          <small>${(seo.meta_description || "").length} caracteres · una promesa clara, sin sobrecargarla</small>
+          <p>${escapeHtml(metaDescription || "Pendiente")}</p>
+          <small>${metaDescription.length} caracteres · una promesa clara, sin sobrecargarla</small>
         </article>
-        <article class="seo-field"><span>Dirección pública</span><strong>/${escapeHtml(seo.slug || "")}</strong><small>URL corta y legible</small></article>
+        <article class="seo-field"><span>Dirección pública</span><strong>/${escapeHtml(slug)}</strong><small>URL corta y legible</small></article>
         <article class="seo-field"><span>Dirección canónica</span><strong>${escapeHtml(path)}</strong><small>La referencia que deben indexar los buscadores</small></article>
         <article class="seo-field"><span>Foco de la búsqueda</span><strong>${escapeHtml(blog.brief?.primary_keyword || "Pendiente")}</strong><small>Densidad estimada: ${escapeHtml(density)}</small></article>
         <article class="seo-field"><span>Para compartir</span><strong>${escapeHtml(seo.open_graph?.og_title || seo.meta_title)}</strong><small>${escapeHtml(seo.open_graph?.og_locale || "es_ES")} · ${escapeHtml(seo.open_graph?.og_type || "article")}</small></article>
       </div>
+
+      <form class="seo-edit-form" data-id="${escapeAttr(blog.id)}">
+        <h4>Ajustar la ficha antes de WordPress</h4>
+        <label>Título SEO<input name="metaTitle" maxlength="255" required value="${escapeAttr(metaTitle)}"></label>
+        <label>Metadescripción<textarea name="metaDescription" maxlength="500" required>${escapeHtml(metaDescription)}</textarea></label>
+        <label>Palabra clave principal<input name="primaryKeyword" maxlength="160" required value="${escapeAttr(blog.brief?.primary_keyword || "")}"></label>
+        <p>Al guardar, el artículo vuelve a «En revisión» si estaba aprobado. La próxima sincronización aplicará estos campos a Rank Math cuando WordPress los confirme.</p>
+        <button class="secondary-button" type="submit">Guardar SEO</button>
+      </form>
 
       <section class="schema-card">
         <header>

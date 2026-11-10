@@ -24,6 +24,7 @@ REGLAS DE REDACCION:
 - Usa listas (<ul>/<ol>) o tablas (<table>) cuando el brief lo indique o cuando una seccion enumere claramente >=3 elementos paralelos. No las metas si no aportan.
 - Inserta <blockquote> con UNA frase potente por articulo (no mas) para resaltar la tesis.
 - Inserta los enlaces internos del brief con anchor text descriptivo dentro del cuerpo: <a href="URL_PATH">anchor</a>.
+- Usa la `primary_keyword` exacta de forma natural en el primer párrafo y, cuando encaje, en un H2. Repite el concepto a lo largo del artículo con sinónimos; no fuerces densidad ni frases gramaticalmente extrañas para subir una puntuación.
 
 POLITICA DE IMAGENES (LIGERAS):
 - El brief especifica cuantas figuras incluir (campo `images_per_article`, hoy 0-6). Respeta ESE numero exacto.
@@ -44,6 +45,7 @@ El CTA final del articulo SIEMPRE debe ser este bloque, palabra por palabra, sin
     <a href="https://nexiagp.com/contacto/" class="cta-link">Contactar</a>
   </div>
 Si el brief sugiere un CTA distinto, IGNORALO para el cierre final: el cierre es siempre "¿Comenzamos? Contactar". Si el brief incluye un CTA tematico adicional, insertalo como parrafo dentro de la ultima seccion ANTES del bloque blog-cta, no en lugar de el.
+El exportador de WordPress retira este CTA del cuerpo porque la plantilla pública ya muestra su propio botón «CONTACTAR»; consérvalo en el HTML editorial para la vista previa de la aplicación.
 
 LEAD MAGNET (opcional):
 Si hay lead_magnet en el brief, insertalo en la seccion indicada como <aside class="lead-magnet"> con titulo + descripcion + un texto de disponibilidad "Recurso en preparación". NO inventes una URL ni uses un enlace de descarga si el recurso no existe. NO sustituye al CTA final.

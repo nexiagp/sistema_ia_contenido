@@ -427,6 +427,22 @@ def blog_quality_gate(
     if "<script" in original_html.lower() or "<style" in original_html.lower():
         warnings.append("Se retiraron elementos HTML no permitidos antes de guardar el artículo.")
 
+    keyword = str(brief.get("primary_keyword") or "").strip()
+    if keyword:
+        def normalise_phrase(value: object) -> str:
+            value = unicodedata.normalize("NFKD", str(value or ""))
+            value = "".join(char for char in value if not unicodedata.combining(char)).lower()
+            return re.sub(r"\s+", " ", re.sub(r"[^\w]+", " ", value)).strip()
+
+        focus = normalise_phrase(keyword)
+        intro = re.search(r"<p\b[^>]*>(.*?)</p>", safe_html, re.IGNORECASE | re.DOTALL)
+        if focus not in normalise_phrase(safe_seo.get("meta_title")):
+            warnings.append("La palabra clave principal no aparece en el título SEO.")
+        if focus not in normalise_phrase(safe_seo.get("meta_description")):
+            warnings.append("La palabra clave principal no aparece en la metadescripción.")
+        if intro and focus not in normalise_phrase(re.sub(r"<[^>]+>", " ", intro.group(1))):
+            warnings.append("La palabra clave principal no aparece en el primer párrafo; revisa si encaja de forma natural.")
+
     seo_flags = [str(item) for item in safe_seo.get("seo_review_flags") or [] if str(item).strip()]
     if seo_flags:
         blockers.append(f"El control SEO ha marcado: {', '.join(seo_flags)}.")

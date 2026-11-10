@@ -31,6 +31,7 @@ _IMAGE_WIDTHS = (1600, 1400, 1200, 1024, 900, 768)
 _FIGURE_RE = re.compile(r"<figure\b(?P<attrs>[^>]*)>(?P<body>.*?)</figure\s*>", re.IGNORECASE | re.DOTALL)
 _FIGURE_ID_RE = re.compile(r"\bdata-figure-id\s*=\s*(['\"])(?P<id>[^'\"]+)\1", re.IGNORECASE)
 _BLOG_HEADER_RE = re.compile(r"<header\b[^>]*\bclass\s*=\s*(['\"])[^'\"]*\bblog-header\b[^'\"]*\1[^>]*>.*?</header\s*>", re.IGNORECASE | re.DOTALL)
+_BLOG_CTA_RE = re.compile(r"<div\b[^>]*\bclass\s*=\s*(['\"])[^'\"]*\bblog-cta\b[^'\"]*\1[^>]*>.*?</div\s*>", re.IGNORECASE | re.DOTALL)
 _ARTICLE_OPEN_RE = re.compile(r"^\s*<article\b[^>]*\bblog-post\b[^>]*>", re.IGNORECASE)
 _ARTICLE_CLOSE_RE = re.compile(r"</article\s*>\s*$", re.IGNORECASE)
 _FIRST_H1_RE = re.compile(r"<h1\b[^>]*>.*?</h1\s*>", re.IGNORECASE | re.DOTALL)
@@ -40,6 +41,16 @@ _LEAD_MAGNET_RE = re.compile(
 )
 _VALID_LINK_RE = re.compile(r"<a\b[^>]*\bhref\s*=\s*(['\"])(?:https?://|/)[^'\"]+\1", re.IGNORECASE)
 _FILENAME_RE = re.compile(r"[^a-z0-9_-]+", re.IGNORECASE)
+_WP_BLOCK_TAG_RE = re.compile(r"<(p|h2|h3|blockquote|ul|ol)\b(?P<attrs>[^>]*)>", re.IGNORECASE)
+_CLASS_ATTR_RE = re.compile(r"\bclass\s*=\s*(['\"])(?P<classes>[^'\"]*)\1", re.IGNORECASE)
+_WP_BLOCK_CLASSES = {
+    "p": "wp-block-paragraph",
+    "h2": "wp-block-heading",
+    "h3": "wp-block-heading",
+    "blockquote": "wp-block-quote",
+    "ul": "wp-block-list",
+    "ol": "wp-block-list",
+}
 _RANK_MATH_META_FIELDS = (
     "rank_math_title",
     "rank_math_description",
@@ -110,14 +121,15 @@ def clean_wordpress_article(
     *,
     featured_figure_id: str | None = None,
 ) -> str:
-    """Replace Nexia figure placeholders with WordPress media and remove duplicate H1.
+    """Fit editorial HTML into the site's existing Elementor single-post template.
 
-    WordPress' existing template supplies the article title.  Removing the
-    editorial H1/header prevents two page titles while retaining the rest of
-    the semantic article, CTA, links and captions.
+    The template supplies the title, featured image and Contactar button.
+    Published posts use WordPress block classes inside Elementor's post-content
+    widget; adding those classes lets the theme own typography and colours.
     """
     content = str(article_html or "")
     content = _BLOG_HEADER_RE.sub("", content)
+    content = _BLOG_CTA_RE.sub("", content)
     content = _ARTICLE_OPEN_RE.sub("", content)
     content = _ARTICLE_CLOSE_RE.sub("", content)
     content = _FIRST_H1_RE.sub("", content, count=1)
@@ -149,7 +161,30 @@ def clean_wordpress_article(
             f"{caption_html}</figure>"
         )
 
-    return _FIGURE_RE.sub(replace_figure, content).strip()
+    content = _FIGURE_RE.sub(replace_figure, content)
+
+    def use_theme_block_class(match: re.Match[str]) -> str:
+        tag = match.group(1).lower()
+        attrs = match.group("attrs")
+        block_class = _WP_BLOCK_CLASSES[tag]
+        class_match = _CLASS_ATTR_RE.search(attrs)
+        if class_match:
+            classes = class_match.group("classes").split()
+            if block_class not in classes:
+                classes.insert(0, block_class)
+            attrs = attrs[:class_match.start()] + f'class="{" ".join(classes)}"' + attrs[class_match.end():]
+        else:
+            attrs += f' class="{block_class}"'
+        return f"<{tag}{attrs}>"
+
+    content = _WP_BLOCK_TAG_RE.sub(use_theme_block_class, content)
+    content = re.sub(
+        r"(<table\b[^>]*>.*?</table\s*>)",
+        r'<figure class="wp-block-table">\1</figure>',
+        content,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    return content.strip()
 
 
 def wordpress_content_hash(title: str, slug: str, content: str, excerpt: str) -> str:
@@ -392,11 +427,16 @@ class WordPressService:
         if not isinstance(response, dict) or not response.get("id") or not response.get("link"):
             raise WordPressError("WordPress no confirmó la creación del borrador.")
         resolved_post_id = int(response["id"])
+        returned_meta = response.get("meta") if isinstance(response.get("meta"), dict) else {}
+        verified_rank_math_fields = sorted(
+            key for key, value in safe_rank_math_meta.items() if returned_meta.get(key) == value
+        )
         return {
             "postId": resolved_post_id,
             "postUrl": str(response["link"]),
             "editUrl": f"{self.base_url}/wp-admin/post.php?post={resolved_post_id}&action=edit",
             "status": str(response.get("status") or "draft"),
+            "_verifiedRankMathFields": verified_rank_math_fields,
         }
 
     def sync_blog_draft(
@@ -463,10 +503,11 @@ class WordPressService:
             author_id=author_id,
             rank_math_meta=rank_math_meta,
         )
+        verified_fields = list(post.pop("_verifiedRankMathFields", []))
         post["rankMath"] = {
             "detected": bool(rank_math_fields),
-            "applied": sorted(rank_math_meta),
-            "manualReview": not bool(rank_math_meta),
+            "applied": verified_fields,
+            "manualReview": len(verified_fields) != len(_RANK_MATH_META_FIELDS),
         }
         return {
             "post": post,

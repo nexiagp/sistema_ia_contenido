@@ -69,6 +69,21 @@ class WordPressArticleTests(unittest.TestCase):
         self.assertIn("Contenido que debe permanecer.", result)
         self.assertIn("wp-element-caption", result)
 
+    def test_export_uses_published_post_blocks_and_template_contact_button(self) -> None:
+        source = '''<article class="blog-post"><header class="blog-header"><h1>Título</h1></header>
+        <p class="blog-intro">Entrada.</p><h2>Sección</h2><p>Desarrollo.</p><table><tr><td>Dato</td></tr></table>
+        <div class="blog-cta"><p>¿Comenzamos?</p><a href="/contacto/">Contactar</a></div>
+        </article>'''
+
+        result = clean_wordpress_article(source, {})
+
+        self.assertIn('class="wp-block-paragraph blog-intro"', result)
+        self.assertIn('<h2 class="wp-block-heading">Sección</h2>', result)
+        self.assertIn('<p class="wp-block-paragraph">Desarrollo.</p>', result)
+        self.assertIn('<figure class="wp-block-table"><table>', result)
+        self.assertNotIn("blog-cta", result)
+        self.assertNotIn("¿Comenzamos?", result)
+
     def test_sync_reuses_existing_media_and_marks_the_hero_as_featured(self) -> None:
         service = WordPressService(base_url="https://example.com", username="editor", application_password="test")
         captured: dict = {}
@@ -100,7 +115,7 @@ class WordPressArticleTests(unittest.TestCase):
         self.assertEqual(result["uploadedImages"], 0)
         self.assertEqual(captured["featured_media_id"], 77)
         self.assertNotIn("wp-image-77", captured["content"])
-        self.assertIn("<p>Cuerpo.</p>", captured["content"])
+        self.assertIn('<p class="wp-block-paragraph">Cuerpo.</p>', captured["content"])
         self.assertEqual(result["post"]["postId"], 123)
 
     def test_export_keeps_inline_images_and_only_available_resources(self) -> None:
@@ -148,7 +163,7 @@ class WordPressArticleTests(unittest.TestCase):
 
         def upsert(**kwargs):
             captured.update(kwargs)
-            return {"postId": 456, "postUrl": "https://example.com/rank-math/", "editUrl": "https://example.com/edit", "status": "draft"}
+            return {"postId": 456, "postUrl": "https://example.com/rank-math/", "editUrl": "https://example.com/edit", "status": "draft", "_verifiedRankMathFields": sorted(kwargs["rank_math_meta"])}
 
         service._request = request  # type: ignore[method-assign]
         service.upsert_draft = upsert  # type: ignore[method-assign]
@@ -172,6 +187,18 @@ class WordPressArticleTests(unittest.TestCase):
         })
         self.assertTrue(result["post"]["rankMath"]["detected"])
         self.assertFalse(result["post"]["rankMath"]["manualReview"])
+
+    def test_rank_math_reports_manual_review_if_wordpress_does_not_echo_values(self) -> None:
+        service = WordPressService(base_url="https://example.com", username="editor", application_password="test")
+        service._request = lambda *_args, **_kwargs: {"id": 7, "link": "https://example.com/demo/", "status": "draft", "meta": {"rank_math_title": "Old title"}}  # type: ignore[method-assign]
+
+        result = service.upsert_draft(
+            blog_id="blog_demo", title="Demo", slug="demo", content="<p>Demo</p>", excerpt="Demo",
+            featured_media_id=None, existing={"postId": 7, "status": "draft"},
+            rank_math_meta={"rank_math_title": "New title", "rank_math_focus_keyword": "demo"},
+        )
+
+        self.assertEqual(result["_verifiedRankMathFields"], [])
 
     def test_rank_math_falls_back_to_manual_review_when_meta_is_not_exposed(self) -> None:
         service = WordPressService(base_url="https://example.com", username="editor", application_password="test")

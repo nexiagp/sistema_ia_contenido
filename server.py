@@ -1453,12 +1453,20 @@ def refresh_blog_quality_gate(blog: dict) -> dict:
     has_override = isinstance(article.get("article_html_override"), str) and article.get("article_html_override").strip()
     if has_override:
         effective_article["article_html"] = article["article_html_override"]
+    effective_seo = dict(blog.get("seo") or {})
+    if blog.get("metaTitle"):
+        effective_seo["meta_title"] = blog["metaTitle"]
+    if blog.get("metaDescription"):
+        effective_seo["meta_description"] = blog["metaDescription"]
+    if blog.get("slug"):
+        effective_seo["slug"] = blog["slug"]
+        effective_seo["canonical_path"] = f"/{blog['slug'].strip('/')}/"
     safe_article, safe_seo, quality_gate = blog_quality_gate(
         blog.get("request") or {},
         blog.get("brief") or {},
         blog.get("retrieval") or {},
         effective_article,
-        blog.get("seo") or {},
+        effective_seo,
     )
     if has_override:
         article["article_html_override"] = safe_article.get("article_html", "")
@@ -1498,7 +1506,7 @@ def has_unacknowledged_quality_gate(content: dict) -> bool:
 
 
 def patch_blog(blog_id: str, body: dict) -> dict:
-    allowed_fields = {"status", "scheduledFor", "metaTitle", "metaDescription", "slug", "title", "articleHtmlOverride"}
+    allowed_fields = {"status", "scheduledFor", "metaTitle", "metaDescription", "primaryKeyword", "slug", "title", "articleHtmlOverride"}
     with transaction() as db:
         blog = next((item for item in db.get("blogs", []) if item.get("id") == blog_id), None)
         if not blog:
@@ -1513,11 +1521,16 @@ def patch_blog(blog_id: str, body: dict) -> dict:
                     if not isinstance(body[key], str):
                         raise ApiError("El HTML del artículo debe ser texto.", 400)
                     blog.setdefault("article", {})["article_html_override"] = body[key]
+                elif key == "primaryKeyword":
+                    keyword = str(body[key] or "").strip()
+                    if not keyword or len(keyword) > 160:
+                        raise ApiError("Indica una palabra clave principal de hasta 160 caracteres.", 400)
+                    blog.setdefault("brief", {})["primary_keyword"] = keyword
                 elif key != "status":
                     blog[key] = body[key]
         # A changed article or a deliberate return to review invalidates the
         # old approval and any date reserved for the previous version.
-        editorial_changed = any(key in body for key in {"metaTitle", "metaDescription", "slug", "title", "articleHtmlOverride"})
+        editorial_changed = any(key in body for key in {"metaTitle", "metaDescription", "primaryKeyword", "slug", "title", "articleHtmlOverride"})
         returned_to_review = body.get("status") in {"draft", "review"}
         if editorial_changed:
             blog["status"] = "review"
